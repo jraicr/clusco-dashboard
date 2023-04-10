@@ -7,17 +7,16 @@ import holoviews as hv
 import hvplot.dask
 import panel as pn
 import datashader as ds
-import datashader.transfer_functions as tf
+#import datashader.transfer_functions as tf
 from pymongo import MongoClient
-from holoviews.operation.datashader import datashade, rasterize
+#from holoviews.operation.datashader import datashade, rasterize
 from matplotlib.colors import LinearSegmentedColormap
-import colorcet as cc
-from bokeh.models import DatetimeTickFormatter, HoverTool
+#import colorcet as cc
+#from bokeh.models import DatetimeTickFormatter, HoverTool
 
 hv.extension('bokeh')
 pn.extension()
 pd.options.plotting.backend = 'holoviews'
-
 
 def connect_to_database(host, port, database):
     """
@@ -108,8 +107,8 @@ def hvplot_dask_df_line(df, x, y, width, height, title, dic_opts, color='gray', 
     Plots a dask dataframe line plot.
     """
 
-    dynamic_map = df.compute().hvplot.line(x=x, y=y, width=width, height=height,
-                                           title=title, color=color, groupby=groupby)
+    dynamic_map = df.compute().hvplot.line(x=x, y=y,
+                                           title=title, color=color, groupby=groupby, responsive=True, min_height=400)
 
     options = list(dic_opts.items())
     dynamic_map.opts(**dict(options))
@@ -122,8 +121,8 @@ def hvplot_dask_df_scatter(df, x, y, width, height, title, color, size, marker, 
     Plots a dask dataframe line plot.
     """
 
-    plot = df.compute().hvplot.scatter(x=x, y=y,  width=width, height=height, title=title, color=color,
-                                       size=size, marker=marker, cmap=cmap, groupby=groupby, datashade=datashade, rasterize=rasterize, dynamic=dynamic)
+    plot = df.compute().hvplot.scatter(x=x, y=y, title=title, color=color,
+                                       size=size, marker=marker, cmap=cmap, groupby=groupby, datashade=datashade, rasterize=rasterize, dynamic=dynamic, responsive=True, max_height=400)
     options = list(dic_opts.items())
 
     plot.opts(**dict(options))
@@ -184,18 +183,15 @@ def get_data(collection, query, valuesPropertyName, datesPropertyName, id_vars, 
     # Convert pandas data frame to dask dataframe and returns it
     return convert_to_dask_df(data)
 
-
-if __name__ == '__main__':
-    # Conectar a la base de datos
-    db = connect_to_database('localhost', 27017, 'CACO')
-    clusco_hour_collection = db['CLUSCO_hour']
-    clusco_min_collection = db['CLUSCO_min']
-
+    
+def plot_scb_p_temp(clusco_hour_collection, clusco_min_collection, ):
+    print("Making plots for average SCB pixel temperature")
+    
     # Query to get temperature channels from the current year
     SCB_pixel_temperature_current_year_query = {'name': 'scb_pixel_temperature', 'date': {
         '$gte': dt.datetime(dt.date.today().year, 1, 1), '$lt': dt.datetime.today()}}
 
-    # Query to get temperature channels from the last two days
+    # Query to get temperature channels from the last 1000 values
     SCB_pixel_temperature_last_two_days_query = {'name': 'scb_pixel_temperature', 'date': {
         '$gte': dt.datetime(dt.date.today().year, 1, 1), '$lt': dt.datetime.today()}}
 
@@ -203,14 +199,14 @@ if __name__ == '__main__':
         clusco_hour_collection, SCB_pixel_temperature_current_year_query, 'avg', 'date', 'date', 'channel', 'temperature', 'avg_', '', wide_to_long=True)
 
     scb_p_temperature_2days_data = get_data(
-        clusco_min_collection, SCB_pixel_temperature_last_two_days_query, 'avg', 'date', 'date', 'channel', 'temperature', 'avg_', '', 500, wide_to_long=True)
+        clusco_min_collection, SCB_pixel_temperature_last_two_days_query, 'avg', 'date', 'date', 'channel', 'temperature', 'avg_', '', 1000, wide_to_long=True)
 
     # Plot line de una hora para el canal seleccionado
-    scb_p_temperature_1h_lines_plot = hvplot_dask_df_line(scb_p_temperature_1h_data, 'date', 'temperature', 800, 600, 'Average SCB Pixel Temperature - Per Channel (2023 - 1 hour resolution)', dic_opts={
-                                                          'padding': 0.1, 'tools': ['hover'], 'xlabel': 'Fecha', 'ylabel': 'Temperature (ºC)', 'axiswise': True}, groupby='channel')
+    scb_p_temperature_1h_lines_plot = hvplot_dask_df_line(scb_p_temperature_1h_data, 'date', 'temperature', 600, 400, 'Average SCB Pixel Temperature (2023 - 1 hour resolution)', dic_opts={
+                                                          'padding': 0.1, 'tools': ['hover'], 'xlabel': 'Fecha', 'ylabel': 'Temperature (ºC)', 'axiswise': True, 'min_height':400, 'responsive':True}, groupby='channel')
 
-    scb_p_temperature_2days_lines_plot = hvplot_dask_df_line(scb_p_temperature_2days_data, 'date', 'temperature', 800, 600, 'Average SCB Pixel Temperature (Last two days - 1 minute resolution)', dic_opts={
-        'padding': 0.1, 'tools': ['hover'], 'xlabel': 'Fecha', 'ylabel': 'Temperature (ºC)', 'axiswise': True}, groupby='channel')
+    scb_p_temperature_2days_lines_plot = hvplot_dask_df_line(scb_p_temperature_2days_data, 'date', 'temperature', 600, 400, 'Average SCB Pixel Temperature (Last 1000 values - 1 minute resolution)', dic_opts={
+        'padding': 0.1, 'tools': ['hover'], 'xlabel': 'Fecha', 'ylabel': 'Temperature (ºC)', 'axiswise': True, 'min_height':400, 'responsive':True}, groupby='channel')
 
     # GRAFICA SCATTER
     # Custom color map
@@ -218,19 +214,19 @@ if __name__ == '__main__':
         0, (0, 0, 1)), (18/30, (0, 1, 0)), (25/30, (1, 0.65, 0)), (26/30, (1, 0, 0)), (1, (1, 0, 0))])
 
     # Plot scatter de una hora para el canal seleccionado
-    scb_p_temperature_1h_scatter_plot = hvplot_dask_df_scatter(scb_p_temperature_1h_data, x='date', y='temperature', width=800, height=600, title='Average PACTA Temperature (1 hour resolution)', color='temperature', cmap=cmap_custom, size=20, marker='o', dic_opts={
-        'padding': 0.1, 'tools': ['hover'], 'xlabel': 'Fecha', 'ylabel': 'Average Temperature (°C)', 'clim': (0, 30), 'alpha': 0.5}, groupby='channel')
+    scb_p_temperature_1h_scatter_plot = hvplot_dask_df_scatter(scb_p_temperature_1h_data, x='date', y='temperature', width=600, height=400, title='Average SCB Pixel Temperature (1 hour resolution)', color='temperature', cmap=cmap_custom, size=20, marker='o', dic_opts={
+        'padding': 0.1, 'tools': ['hover'], 'xlabel': 'Fecha', 'ylabel': 'Average Temperature (°C)', 'clim': (0, 30), 'alpha': 0.5, 'min_height':400, 'responsive':True}, groupby='channel')
 
     
     # Plot scatter de una hora para TODOS los canales
-    scb_p_temperature_1h_all_channels_scatter_plot = hvplot_dask_df_scatter(scb_p_temperature_1h_data, x='date', y='temperature', width=800, height=600, title='Average PACTA Temperature (1 hour resolution)',
-                                                                            color='temperature', cmap=cmap_custom,  size=20, marker='o', dic_opts={'padding': 0.1, 'xlabel': 'Fecha', 'alpha': 0.30, 'ylabel': 'Temperature (°C)', 'clim': (0, 30)}, rasterize=True, dynamic=False)
+    scb_p_temperature_1h_all_channels_scatter_plot = hvplot_dask_df_scatter(scb_p_temperature_1h_data, x='date', y='temperature', width=600, height=400, title='Average SCB Pixel Temperature (1 hour resolution)',
+                                                                            color='temperature', cmap=cmap_custom,  size=20, marker='o', dic_opts={'padding': 0.1, 'xlabel': 'Fecha', 'alpha': 0.30, 'ylabel': 'Temperature (°C)', 'clim': (0, 30), 'min_height':400, 'responsive':True}, rasterize=True, dynamic=False)
 
-    scb_p_temperature_2days_scatter_plot = hvplot_dask_df_scatter(scb_p_temperature_2days_data, x='date', y='temperature', width=800, height=600, title='Average PACTA Temperature (Last two days - 1 minute resolution)', color='temperature', cmap=cmap_custom, size=20, marker='o', dic_opts={
-        'padding': 0.1, 'tools': ['hover'], 'xlabel': 'Fecha', 'ylabel': 'Average Temperature (°C)', 'clim': (0, 30), 'alpha': 0.5}, groupby='channel')
+    scb_p_temperature_2days_scatter_plot = hvplot_dask_df_scatter(scb_p_temperature_2days_data, x='date', y='temperature', width=600, height=400, title='Average PACTA Temperature (Last 1000 values - 1 minute resolution)', color='temperature', cmap=cmap_custom, size=20, marker='o', dic_opts={
+        'padding': 0.1, 'tools': ['hover'], 'xlabel': 'Fecha', 'ylabel': 'Average Temperature (°C)', 'clim': (0, 30), 'alpha': 0.5, 'min_height':400, 'responsive':True}, groupby='channel')
 
     # Plot scatter de una hora para TODOS los canales
-    scb_p_temperature_2days_all_channels_scatter_plot = hvplot_dask_df_scatter(scb_p_temperature_2days_data, x='date', y='temperature', width=800, height=600, title='Average PACTA Temperature (Last two days - 1 minute resolution)',
+    scb_p_temperature_2days_all_channels_scatter_plot = hvplot_dask_df_scatter(scb_p_temperature_2days_data, x='date', y='temperature', width=600, height=400, title='Average SCB Pixel Temperature (Last 1000 values - 1 minute resolution)',
                                                                                color='temperature', cmap=cmap_custom,  size=20, marker='o', dic_opts={'padding': 0.1, 'xlabel': 'Fecha', 'alpha': 0.30, 'ylabel': 'Temperature (°C)', 'clim': (0, 30) }, rasterize=True, dynamic=False)
     # Juntamos gráfico de lineas y scatters
     scb_p_temp_1h_plot = scb_p_temperature_1h_lines_plot * \
@@ -239,6 +235,7 @@ if __name__ == '__main__':
     scb_p_temp_2days_plot = scb_p_temperature_2days_lines_plot * \
         scb_p_temperature_2days_scatter_plot * \
         scb_p_temperature_2days_all_channels_scatter_plot
+       
     # Creamos grid
     unlinked_grid = pn.GridSpec(sizing_mode='stretch_both',
                                 max_height=800, ncols=2, nrows=2)
@@ -267,9 +264,24 @@ if __name__ == '__main__':
 
     linked_grid[0, 0] = scb_p_temp_1h_plot_linked_panel
     linked_grid[0, 1] = scb_p_temp_2days_plot_linked_panel
-
+    
     tabs = pn.Tabs(('Unlinked', unlinked_grid), ('Linked', linked_grid))
+    
+    return tabs
+    
+
+if __name__ == '__main__':
+    # Conectar a la base de datos
+    db = connect_to_database('localhost', 27017, 'CACO')
+    clusco_hour_collection = db['CLUSCO_hour']
+    clusco_min_collection = db['CLUSCO_min']
+
+    
+    scb_p_temp_plot_tabs = plot_scb_p_temp(clusco_hour_collection, clusco_min_collection)
+    bootstrap = pn.template.BootstrapTemplate(title='Clusco Reports')
+
+    bootstrap.main.append(scb_p_temp_plot_tabs)
 
     #pn.serve(create_dashboard(scb_p_temp_1h_plot), show=True, port=5006, dev=True, websocket_origin='localhost:5006')
-    pn.serve(tabs, show=True, port=5006, dev=True,
-             websocket_origin='localhost:5006')
+    pn.serve(bootstrap, show=True, port=5006, dev=True, websocket_origin='localhost:5006')
+    
