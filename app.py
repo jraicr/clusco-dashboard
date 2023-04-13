@@ -132,7 +132,7 @@ def hvplot_dask_df_scatter(df, x, y, width, height, title, color, size, marker, 
 
 def create_dashboard(*plots):
     """_summary_
-    Creates a panel grid and add panels i different positions
+    Creates a panel grid and add panels to different positions
     """
     grid = pn.GridSpec(sizing_mode='stretch_both',
                        max_height=800, ncols=1, nrows=len(plots))
@@ -184,8 +184,8 @@ def get_data(collection, query, valuesPropertyName, datesPropertyName, id_vars, 
     return convert_to_dask_df(data)
 
     
-def plot_scb_p_temp(clusco_hour_collection, clusco_min_collection, ):
-    print("Making plots for average SCB pixel temperature")
+def plot_scb_p_temp(clusco_hour_collection, clusco_min_collection):
+    print("Making plots for SCB pixel temperature")
     
     # Query to get temperature channels from the current year
     SCB_pixel_temperature_current_year_query = {'name': 'scb_pixel_temperature', 'date': {
@@ -202,10 +202,10 @@ def plot_scb_p_temp(clusco_hour_collection, clusco_min_collection, ):
         clusco_min_collection, SCB_pixel_temperature_last_two_days_query, 'avg', 'date', 'date', 'channel', 'temperature', 'avg_', '', 1000, wide_to_long=True)
 
     # Plot line de una hora para el canal seleccionado
-    scb_p_temperature_1h_lines_plot = hvplot_dask_df_line(scb_p_temperature_1h_data, 'date', 'temperature', 600, 400, 'Average SCB Pixel Temperature (2023 - 1 hour resolution)', dic_opts={
+    scb_p_temperature_1h_lines_plot = hvplot_dask_df_line(scb_p_temperature_1h_data, 'date', 'temperature', 600, 400, 'SCB Pixel Temperature (2023 - 1 hour resolution)', dic_opts={
                                                           'padding': 0.1, 'tools': ['hover'], 'xlabel': 'Fecha', 'ylabel': 'Temperature (ºC)', 'axiswise': True, 'min_height':400, 'responsive':True}, groupby='channel')
 
-    scb_p_temperature_2days_lines_plot = hvplot_dask_df_line(scb_p_temperature_2days_data, 'date', 'temperature', 600, 400, 'Average SCB Pixel Temperature (Last 1000 values - 1 minute resolution)', dic_opts={
+    scb_p_temperature_2days_lines_plot = hvplot_dask_df_line(scb_p_temperature_2days_data, 'date', 'temperature', 600, 400, 'SCB Pixel Temperature (Last 1000 values - 1 minute resolution)', dic_opts={
         'padding': 0.1, 'tools': ['hover'], 'xlabel': 'Fecha', 'ylabel': 'Temperature (ºC)', 'axiswise': True, 'min_height':400, 'responsive':True}, groupby='channel')
 
     # GRAFICA SCATTER
@@ -214,19 +214,19 @@ def plot_scb_p_temp(clusco_hour_collection, clusco_min_collection, ):
         0, (0, 0, 1)), (18/30, (0, 1, 0)), (25/30, (1, 0.65, 0)), (26/30, (1, 0, 0)), (1, (1, 0, 0))])
 
     # Plot scatter de una hora para el canal seleccionado
-    scb_p_temperature_1h_scatter_plot = hvplot_dask_df_scatter(scb_p_temperature_1h_data, x='date', y='temperature', width=600, height=400, title='Average SCB Pixel Temperature (1 hour resolution)', color='temperature', cmap=cmap_custom, size=20, marker='o', dic_opts={
+    scb_p_temperature_1h_scatter_plot = hvplot_dask_df_scatter(scb_p_temperature_1h_data, x='date', y='temperature', width=600, height=400, title='SCB Pixel Temperature (1 hour resolution)', color='temperature', cmap=cmap_custom, size=20, marker='o', dic_opts={
         'padding': 0.1, 'tools': ['hover'], 'xlabel': 'Fecha', 'ylabel': 'Average Temperature (°C)', 'clim': (0, 30), 'alpha': 0.5, 'min_height':400, 'responsive':True}, groupby='channel')
 
     
     # Plot scatter de una hora para TODOS los canales
-    scb_p_temperature_1h_all_channels_scatter_plot = hvplot_dask_df_scatter(scb_p_temperature_1h_data, x='date', y='temperature', width=600, height=400, title='Average SCB Pixel Temperature (1 hour resolution)',
+    scb_p_temperature_1h_all_channels_scatter_plot = hvplot_dask_df_scatter(scb_p_temperature_1h_data, x='date', y='temperature', width=600, height=400, title='SCB Pixel Temperature (1 hour resolution)',
                                                                             color='temperature', cmap=cmap_custom,  size=20, marker='o', dic_opts={'padding': 0.1, 'xlabel': 'Fecha', 'alpha': 0.30, 'ylabel': 'Temperature (°C)', 'clim': (0, 30), 'min_height':400, 'responsive':True}, rasterize=True, dynamic=False)
 
-    scb_p_temperature_2days_scatter_plot = hvplot_dask_df_scatter(scb_p_temperature_2days_data, x='date', y='temperature', width=600, height=400, title='Average PACTA Temperature (Last 1000 values - 1 minute resolution)', color='temperature', cmap=cmap_custom, size=20, marker='o', dic_opts={
+    scb_p_temperature_2days_scatter_plot = hvplot_dask_df_scatter(scb_p_temperature_2days_data, x='date', y='temperature', width=600, height=400, title='SCB Pixel Temperature (Last 1000 values - 1 minute resolution)', color='temperature', cmap=cmap_custom, size=20, marker='o', dic_opts={
         'padding': 0.1, 'tools': ['hover'], 'xlabel': 'Fecha', 'ylabel': 'Average Temperature (°C)', 'clim': (0, 30), 'alpha': 0.5, 'min_height':400, 'responsive':True}, groupby='channel')
 
     # Plot scatter de una hora para TODOS los canales
-    scb_p_temperature_2days_all_channels_scatter_plot = hvplot_dask_df_scatter(scb_p_temperature_2days_data, x='date', y='temperature', width=600, height=400, title='Average SCB Pixel Temperature (Last 1000 values - 1 minute resolution)',
+    scb_p_temperature_2days_all_channels_scatter_plot = hvplot_dask_df_scatter(scb_p_temperature_2days_data, x='date', y='temperature', width=600, height=400, title='SCB Pixel Temperature (Last 1000 values - 1 minute resolution)',
                                                                                color='temperature', cmap=cmap_custom,  size=20, marker='o', dic_opts={'padding': 0.1, 'xlabel': 'Fecha', 'alpha': 0.30, 'ylabel': 'Temperature (°C)', 'clim': (0, 30) }, rasterize=True, dynamic=False)
     # Juntamos gráfico de lineas y scatters
     scb_p_temp_1h_plot = scb_p_temperature_1h_lines_plot * \
