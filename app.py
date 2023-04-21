@@ -7,16 +7,17 @@ import holoviews as hv
 import hvplot.dask
 import panel as pn
 import datashader as ds
-#import datashader.transfer_functions as tf
+# import datashader.transfer_functions as tf
 from pymongo import MongoClient
-#from holoviews.operation.datashader import datashade, rasterize
+import holoviews.operation.datashader as hd
 from matplotlib.colors import LinearSegmentedColormap
-#import colorcet as cc
-#from bokeh.models import DatetimeTickFormatter, HoverTool
+# import colorcet as cc
+# from bokeh.models import DatetimeTickFormatter, HoverTool
 
 hv.extension('bokeh')
-pn.extension()
+pn.extension(loading_spinner='dots', loading_color='#00aa41', sizing_mode="stretch_width")
 pd.options.plotting.backend = 'holoviews'
+
 
 
 def connect_to_database(host, port, database):
@@ -36,56 +37,6 @@ def connect_to_database(host, port, database):
     return client[database]
 
 
-def query_database(collection, query, valuesPropertyName, datesPropertyName, limit=None):
-    """
-    Query a MongoDB collection and return data values and dates.
-    """
-    data = []
-    dates = []
-
-    cursor = collection.find(query)
-
-    if limit is not None:
-        cursor = cursor.limit(limit)
-
-    for document in cursor:
-        data.append(document[valuesPropertyName])
-        dates.append(document[datesPropertyName])
-
-    # Add values to dataframe
-    new_df = pd.DataFrame(
-        data, columns=[valuesPropertyName+f"_{i+1}" for i in range(len(data[0]))])
-
-    # Add dates to the dataframe
-    new_df['date'] = pd.to_datetime(dates)
-
-    return new_df
-
-
-def df_wide_to_long_data(df, id_vars, var_name, value_name):
-    """_summary_
-    Melt dataframe to converts from width df to long.
-    """
-    df_long = df.melt(id_vars=[id_vars],
-                      var_name=var_name, value_name=value_name)
-
-    return df_long
-
-
-def remove_zero_values(df, df_key_column):
-    """_summary_
-    Removes zero values from a dataframe.
-    """
-    return df[df_key_column != 0]
-
-
-def replace_column_name(df, df_column_name, str_search, str_replace):
-    """_summary_
-    Replaces a string in a column name.
-    """
-    return df[df_column_name].str.replace(str_search, str_replace)
-
-
 def preprocess_data(df, resample_rule='1H'):
     """_summary_
     Preprocess a dataframe by resampling it and filling in missing values.
@@ -94,13 +45,6 @@ def preprocess_data(df, resample_rule='1H'):
     df = df.fillna(method='ffill')
     df = df.fillna(method='bfill')
     return df
-
-
-def convert_to_dask_df(df, npartitions=multiprocessing.cpu_count()):
-    """_summary_
-    Converts a pandas dataframe to a dask dataframe.
-    """
-    return dask.dataframe.from_pandas(df, npartitions=npartitions).persist()
 
 
 def hvplot_dask_df_line(df, x, y, width, height, title, dic_opts, color='gray', groupby=None):
@@ -127,87 +71,117 @@ def hvplot_dask_df_scatter(df, x, y, width, height, title, color, size, marker, 
     options = list(dic_opts.items())
 
     plot.opts(**dict(options))
-
+        
     return plot
 
 
-def create_dashboard(*plots):
-    """_summary_
-    Creates a panel grid and add panels to different positions
-    """
+def get_data_by_date(collection, property_name, date_time, value_field, id_var, var_name, value_name, remove_temperature_anom=False, search_previous=True):
+
+    # query = {'name': property_name, 'date': {'$gte': dt.datetime(dt.date.today().year, dt.date.today().month, dt.date.today().day)}}
+    # query = {'name': property_name, 'date': {'$gte': dt.datetime(
+    #     date_time.year, date_time.month, date_time.day)}}
+    #query = {'name': property_name, 'date': {'$gte': dt.datetime(date.year, date.month, date.day), '$lt': dt.datetime(date.year, date.month, date.day) + dt.timedelta(days=1)}}
+    data_values = []
+    datetime_values = []
+
+    date = date_time
+    
+    if search_previous:
+
+        for i in range(0, 120):
+            query = {'name': property_name, 'date': {'$gte': dt.datetime(date.year, date.month, date.day), '$lt': dt.datetime(date.year, date.month, date.day) + dt.timedelta(days=1)}}
+            print('Retrieving ' + property_name + ' data from date: ' + str(date))
+
+            for document in collection.find(query, {"date": 1, value_field: 1, "_id": 0}):
+                data_values.append(document[value_field])
+                datetime_values.append(document['date'])
+
+            if len(data_values) > 0:
+                break
+
+            else:
+                date = date_time - dt.timedelta(days=i+1)
+                print('No data found. Retrieving data from previous day...')
+    else:
+        query = {'name': property_name, 'date': {'$gte': dt.datetime(date.year, date.month, date.day), '$lt': dt.datetime(date.year, date.month, date.day) + dt.timedelta(days=1)}}
+        
+        for document in collection.find(query, {"date": 1, value_field: 1, "_id": 0}):
+                data_values.append(document[value_field])
+                datetime_values.append(document['date'])
+        
+            
+    if (len(data_values) > 0):
+        print('Building pandas dataframe...')
+
+        # Pandas dataframe
+        # pandas_df = pd.DataFrame(data_values, columns=[f"channel_{i+1}" for i in range(len(data_values[0]))])
+        pandas_df = pd.DataFrame(data_values, columns=[
+                                var_name+f"_{i+1}" for i in range(len(data_values[0]))])
+
+        # Add dates to dataframe
+        pandas_df['date'] = pd.to_datetime(datetime_values)
+
+        # Melt dataframe to converts from width df to long,
+        # where channel would be a variable and the temperature the value...
+        print('Transforms pandas dataframe from wide to long...')
+        pandas_df_long = pandas_df.melt(
+            id_vars=[id_var], var_name=var_name, value_name=value_name)
+
+        if remove_temperature_anom:
+            # Eliminamos valores de 0
+            values_field_name_attr = getattr(pandas_df_long, value_name)
+            pandas_df_long = pandas_df_long[values_field_name_attr != 0]
+            
+            # Remove all values below -25
+            pandas_df_long = pandas_df_long[values_field_name_attr > -25]
+            
+            # Remove all values above 250
+            pandas_df_long = pandas_df_long[values_field_name_attr < 250]
+        
+
+        # Removes 'avg_' from channel name column and convert to dask dataframe
+        pandas_df_long['channel'] = pandas_df_long['channel'].str.replace(
+            'channel_', '')
+
+        dask_df_long = dask.dataframe.from_pandas(
+            pandas_df_long, npartitions=multiprocessing.cpu_count()).persist()
+
+    else: # Return a empty dask dataframe in case no data is found
+        pandas_df = pd.DataFrame()
+        dask_df_long = dask.dataframe.from_pandas(pandas_df, npartitions=multiprocessing.cpu_count()).persist()
+        
+    return dask_df_long
+
+
+def empty_plot():
+    # Creamos grid
     grid = pn.GridSpec(sizing_mode='stretch_both',
-                       max_height=800, ncols=1, nrows=len(plots))
-    for i, plot in enumerate(plots):
-        panel = pn.panel(plot, widget_location='bottom_left', widgets={
-                         'channel': pn.widgets.DiscreteSlider})
-        grid[i, 0] = panel
+                       max_height=800, ncols=2, nrows=2)
+    # draw an empty plot    
+    empty_plot = hv.Curve([], max_height=400)
+    
+    # Add text the plot indicating "There is no available data in the selected date"
+    empty_plot = empty_plot * hv.Text(0.6, 0.6, 'There is no available data in the selected date')
+    
+    empty_panel_plot = pn.panel(empty_plot, widget_location='bottom_left', widgets={
+                                     'channel': pn.widgets.DiscreteSlider}, linked_axes=False)
+    
+    grid[0, 0] = empty_panel_plot
+    
     return grid
-
-# def create_dashboard(*plots):
-#     # Crear cuadrícula de paneles y agregar paneles en diferentes posiciones
-#     grid = pn.GridSpec(sizing_mode='stretch_both', max_height=800, ncols=len(plots), nrows=1)
-#     for i, plot in enumerate(plots):
-#         panel = pn.panel(plot)
-#         grid[0, i] = panel
-#     return grid
-
-
-def get_data(collection, query, valuesPropertyName, datesPropertyName, id_vars, var_name, value_names, str_search, str_replace, limit=None, remove_zeros=True, wide_to_long=False):
-    '''
-    Summary: Get data from the database with a query that get values and dates from the collection.
-    Then transform it to long format and remove zero values from the values. 
-    Finally, rename column names converted to label row data from data_1, data_2, . ... , data_i to 1, 2 ... , i and return a dask dataframe
-
-    '''
-    print('Getting data from database collection ' + collection.name + '...')
-    # query = {"date": {"$gte": dt.datetime(2021, 1, 1)}}
-    data = query_database(
-        collection, query, valuesPropertyName, datesPropertyName, limit)
-
-    if wide_to_long:
-        # Convert data to long format
-        print('Converting wide dataframe to long...')
-        data = df_wide_to_long_data(
-            data, id_vars, var_name, value_names)
-
-        # Rename channel names from avg_1, avg_2, . ... , avg_i to 1, 2 ... , i
-        data[var_name] = replace_column_name(
-            data, var_name, str_search, str_replace)
-
-        if remove_zeros:
-            print('Removing zero values from ' + value_names + ' field...')
-            # Removes zero values from the temperature values
-            field = getattr(data, value_names)
-            data = remove_zero_values(data, field)
-            # data = remove_zero_values(
-            #     data, data.temperature)
-
-    # Convert pandas data frame to dask dataframe and returns it
-    return convert_to_dask_df(data)
-
-
-def plot_scb_p_temp(clusco_hour_collection, clusco_min_collection):
+    
+    
+def plot_scb_p_temp(scb_p_temperature_data):
     print("Making plots for SCB pixel temperature")
 
-    # Query to get temperature channels from the current year
-    SCB_pixel_temperature_current_year_query = {'name': 'scb_pixel_temperature', 'date': {
-        '$gte': dt.datetime(dt.date.today().year, 1, 1), '$lt': dt.datetime.today()}}
+    # # Query to get temperature channels
+    # SCB_pixel_temperature_query = {'name': 'scb_pixel_temperature', 'date': {
+    #     '$gte': dt.datetime(dt.date.today().year, 1, 1), '$lt': dt.datetime.today()}}
 
-    # Query to get temperature channels from the last 1000 values
-    SCB_pixel_temperature_last_two_days_query = {'name': 'scb_pixel_temperature', 'date': {
-        '$gte': dt.datetime(dt.date.today().year, 1, 1), '$lt': dt.datetime.today()}}
+    # scb_p_temperature_data = get_data(clusco_min_collection, SCB_pixel_temperature_query, 'avg', 'date', 'date', 'channel', 'temperature', 'avg_', '', 1000, wide_to_long=True)
+    # scb_p_temperature_data = get_data_by_date(clusco_min_collection, 'scb_pixel_temperature', dt.date.today(), 'avg', 'date', 'channel', 'temperature')
 
-    scb_p_temperature_1h_data = get_data(
-        clusco_hour_collection, SCB_pixel_temperature_current_year_query, 'avg', 'date', 'date', 'channel', 'temperature', 'avg_', '', wide_to_long=True)
-
-    scb_p_temperature_2days_data = get_data(
-        clusco_min_collection, SCB_pixel_temperature_last_two_days_query, 'avg', 'date', 'date', 'channel', 'temperature', 'avg_', '', 1000, wide_to_long=True)
-
-    # Plot line de una hora para el canal seleccionado
-    scb_p_temperature_1h_lines_plot = hvplot_dask_df_line(scb_p_temperature_1h_data, 'date', 'temperature', 600, 400, 'SCB Pixel Temperature (2023 - 1 hour resolution)', dic_opts={
-                                                          'padding': 0.1, 'tools': ['hover'], 'xlabel': 'Date', 'ylabel': 'Temperature (ºC)', 'axiswise': True, 'min_height': 400, 'responsive': True}, groupby='channel')
-
-    scb_p_temperature_2days_lines_plot = hvplot_dask_df_line(scb_p_temperature_2days_data, 'date', 'temperature', 600, 400, 'SCB Pixel Temperature (Last 1000 values - 1 minute resolution)', dic_opts={
+    scb_p_temperature_lines_plot = hvplot_dask_df_line(scb_p_temperature_data, 'date', 'temperature', 600, 400, 'SCB Pixel Temperature', dic_opts={
         'padding': 0.1, 'tools': ['hover'], 'xlabel': 'Date', 'ylabel': 'Temperature (ºC)', 'axiswise': True, 'min_height': 400, 'responsive': True}, groupby='channel')
 
     # GRAFICA SCATTER
@@ -215,73 +189,81 @@ def plot_scb_p_temp(clusco_hour_collection, clusco_min_collection):
     cmap_custom = LinearSegmentedColormap.from_list('mycmap', [(
         0, (0, 0, 1)), (18/30, (0, 1, 0)), (25/30, (1, 0.65, 0)), (26/30, (1, 0, 0)), (1, (1, 0, 0))])
 
-    # Plot scatter de una hora para el canal seleccionado
-    scb_p_temperature_1h_scatter_plot = hvplot_dask_df_scatter(scb_p_temperature_1h_data, x='date', y='temperature', width=600, height=400, title='SCB Pixel Temperature (1 hour resolution)', color='temperature', cmap=cmap_custom, size=20, marker='o', dic_opts={
+    scb_p_temperature_scatter_plot = hvplot_dask_df_scatter(scb_p_temperature_data, x='date', y='temperature', width=600, height=400, title='SCB Pixel Temperature', color='temperature', cmap=cmap_custom, size=20, marker='o', dic_opts={
         'padding': 0.1, 'tools': ['hover'], 'xlabel': 'Date', 'ylabel': 'Temperature (°C)', 'clim': (0, 30), 'alpha': 0.5, 'min_height': 400, 'responsive': True}, groupby='channel')
 
     # Plot scatter de una hora para TODOS los canales
-    scb_p_temperature_1h_all_channels_scatter_plot = hvplot_dask_df_scatter(scb_p_temperature_1h_data, x='date', y='temperature', width=600, height=400, title='SCB Pixel Temperature (1 hour resolution)',
-                                                                            color='temperature', cmap=cmap_custom,  size=20, marker='o', dic_opts={'padding': 0.1, 'xlabel': 'Date', 'alpha': 0.30, 'ylabel': 'Temperature (°C)', 'clim': (0, 30), 'min_height': 400, 'responsive': True}, rasterize=True, dynamic=False)
-
-    scb_p_temperature_2days_scatter_plot = hvplot_dask_df_scatter(scb_p_temperature_2days_data, x='date', y='temperature', width=600, height=400, title='SCB Pixel Temperature (Last 1000 values - 1 minute resolution)', color='temperature', cmap=cmap_custom, size=20, marker='o', dic_opts={
-        'padding': 0.1, 'tools': ['hover'], 'xlabel': 'Date', 'ylabel': 'Temperature (°C)', 'clim': (0, 30), 'alpha': 0.5, 'min_height': 400, 'responsive': True}, groupby='channel')
-
-    # Plot scatter de una hora para TODOS los canales
-    scb_p_temperature_2days_all_channels_scatter_plot = hvplot_dask_df_scatter(scb_p_temperature_2days_data, x='date', y='temperature', width=600, height=400, title='SCB Pixel Temperature (Last 1000 values - 1 minute resolution)',
+    scb_p_temperature_all_channels_scatter_plot = hvplot_dask_df_scatter(scb_p_temperature_data, x='date', y='temperature', width=600, height=400, title='SCB Pixel Temperature',
                                                                                color='temperature', cmap=cmap_custom,  size=20, marker='o', dic_opts={'padding': 0.1, 'xlabel': 'Date', 'alpha': 0.30, 'ylabel': 'Temperature (°C)', 'clim': (0, 30)}, rasterize=True, dynamic=False)
+    
+    
     # Juntamos gráfico de lineas y scatters
-    scb_p_temp_1h_plot = scb_p_temperature_1h_lines_plot * \
-        scb_p_temperature_1h_scatter_plot * scb_p_temperature_1h_all_channels_scatter_plot
-
-    scb_p_temp_2days_plot = scb_p_temperature_2days_lines_plot * \
-        scb_p_temperature_2days_scatter_plot * \
-        scb_p_temperature_2days_all_channels_scatter_plot
+    scb_p_temp_plot = scb_p_temperature_lines_plot * scb_p_temperature_scatter_plot * scb_p_temperature_all_channels_scatter_plot
 
     # Creamos grid
-    unlinked_grid = pn.GridSpec(sizing_mode='stretch_both',
-                                max_height=800, ncols=2, nrows=2)
+    grid = pn.GridSpec(sizing_mode='stretch_both',
+                       max_height=800, ncols=2, nrows=2)
 
-    linked_grid = pn.GridSpec(sizing_mode='stretch_both',
-                              max_height=800, ncols=2, nrows=2)
-
+    
     # Creamos panel con nuestras gráficas y la agregamos al grid. Aquí podemos configurar widgets, etc
-    scb_p_temp_1h_plot_panel = pn.panel(scb_p_temp_1h_plot, widget_location='bottom_left', widgets={
-                                        'channel': pn.widgets.DiscreteSlider}, linked_axes=False)
+    scb_p_temp_plot_panel = pn.panel(scb_p_temp_plot, widget_location='bottom_left', widgets={
+                                     'channel': pn.widgets.DiscreteSlider}, linked_axes=False)
 
-    scb_p_temp_2days_plot_panel = pn.panel(scb_p_temp_2days_plot, widget_location='bottom_left', widgets={
-                                           'channel': pn.widgets.DiscreteSlider}, linked_axes=False)
+    grid[0, 0] = scb_p_temp_plot_panel
 
-    scb_p_temp_1h_plot_linked_panel = pn.panel(scb_p_temp_1h_plot, widget_location='bottom_left', widgets={
-        'channel': pn.widgets.DiscreteSlider})
-
-    scb_p_temp_2days_plot_linked_panel = pn.panel(scb_p_temp_2days_plot, widget_location='bottom_left', widgets={
-        'channel': pn.widgets.DiscreteSlider})
-
-    #scb_p_temp_1h_plot_all_channels_panel = pn.panel(scb_p_temperature_1h_lines_all_channels_plot, widget_location='bottom_left')
-
-    unlinked_grid[0, 0] = scb_p_temp_1h_plot_panel
-    unlinked_grid[0, 1] = scb_p_temp_2days_plot_panel
-    #unlinked_grid[1, 0] = scb_p_temp_1h_plot_all_channels_panel
-
-    linked_grid[0, 0] = scb_p_temp_1h_plot_linked_panel
-    linked_grid[0, 1] = scb_p_temp_2days_plot_linked_panel
-
-    tabs = pn.Tabs(('Unlinked', unlinked_grid), ('Linked', linked_grid))
-
-    return tabs
+    # tabs = pn.Tabs(('Unlinked', grid))
+    # return tabs
+    return grid
 
 
 if __name__ == '__main__':
-    # Conectar a la base de datos
+    pn.param.ParamMethod.loading_indicator = True
+    
+    # Setup BD Connection
     db = connect_to_database('localhost', 27017, 'CACO')
-    clusco_hour_collection = db['CLUSCO_hour']
+
     clusco_min_collection = db['CLUSCO_min']
 
-    scb_p_temp_plot_tabs = plot_scb_p_temp(
-        clusco_hour_collection, clusco_min_collection)
+    date_filter = dt.date.today()
+    scb_p_temperature_data = get_data_by_date(collection=clusco_min_collection, property_name='scb_pixel_temperature',
+                                              date_time=date_filter, value_field='avg', id_var='date', var_name='channel', value_name='temperature', remove_temperature_anom=True)
+
+    start_date = scb_p_temperature_data.compute()['date'].dt.date[0]
+    date_picker = pn.widgets.DatePicker(name='Date Selection', value=start_date, end=dt.date.today())
+
+    #grid = plot_scb_p_temp(scb_p_temperature_data)
+
+    @pn.depends(date_picker.param.value)
+    def update_scb_p_plot(date_picker):
+            print("start_date: " + str(start_date))
+            print("date_picker: " + str(date_picker))
+        
+            if date_picker != start_date:
+                print('getting new dataframe')
+                data = get_data_by_date(collection=clusco_min_collection, 
+                                                          property_name='scb_pixel_temperature',
+                                                          date_time=date_picker, value_field='avg', 
+                                                          id_var='date', var_name='channel', 
+                                                          value_name='temperature', remove_temperature_anom=True, search_previous=False)
+                
+                if len(data.index) != 0:
+                    print('plotting and adding to grid')
+                    grid = plot_scb_p_temp(data)
+                else:
+                    print('No data to print!')
+                    grid = empty_plot()
+                
+            else:
+                grid = plot_scb_p_temp(scb_p_temperature_data)
+                
+            return grid      
+
+
 
     bootstrap = pn.template.BootstrapTemplate(title='Clusco Reports')
 
-    bootstrap.main.append(scb_p_temp_plot_tabs)
 
-    pn.serve(bootstrap, port=5006, allow_websocket_origin='localhost:5006', websocket_origin='localhost:5006', verbose=True, dev=True, num_procs=0)
+    bootstrap.main.append(update_scb_p_plot)
+    bootstrap.sidebar.append(date_picker)
+
+    pn.serve(bootstrap, port=5006, allow_websocket_origin='localhost:5006', websocket_origin='localhost:5006', verbose=True, dev=True, num_procs=0, show=False)
