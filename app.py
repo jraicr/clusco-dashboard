@@ -10,12 +10,19 @@ import datashader as ds
 from pymongo import MongoClient
 import holoviews.operation.datashader as hd
 from matplotlib.colors import LinearSegmentedColormap
-
+import time
 
 hv.extension('bokeh')
-pn.extension(loading_spinner='dots', loading_color='#00aa41',
-             sizing_mode="stretch_width")
+pn.extension(loading_spinner='dots', loading_color='#00aa41', sizing_mode="stretch_width")
 pd.options.plotting.backend = 'holoviews'
+
+panels_dict = {
+  "scb_pixel_temperature": "empty",
+  "scb_temperature": "empty",
+  "scb_humidity": "empty",
+  "scb_pixel_an_current": "empty",
+  "scb_pixel_hv_monitored": "empty"
+}
 
 
 def connect_to_database(host, port, database):
@@ -64,9 +71,14 @@ def hvplot_dask_df_scatter(df, x, y, width, height, title, color, size, marker, 
     """_summary_
     Plots a dask dataframe line plot.
     """
-
-    plot = df.compute().hvplot.scatter(x=x, y=y, title=title, color=color,
-                                       size=size, marker=marker, cmap=cmap, groupby=groupby, datashade=datashade, rasterize=rasterize, dynamic=dynamic, responsive=True, max_height=400)
+    if rasterize == False:
+        plot = df.compute().hvplot.scatter(x=x, y=y, title=title, color=color,
+                                   size=size, marker=marker, cmap=cmap, groupby=groupby, datashade=datashade, rasterize=rasterize, dynamic=dynamic, responsive=True, min_height=400)
+        
+    else:
+       plot = df.compute().hvplot.scatter(x=x, y=y, title=title, color=color,
+                                   marker=marker, cmap=cmap, groupby=groupby, datashade=datashade, rasterize=rasterize, dynamic=dynamic, responsive=True, min_height=400)
+        
     options = list(dic_opts.items())
 
     plot.opts(**dict(options))
@@ -90,7 +102,7 @@ def get_data_by_date(collection, property_name, date_time, value_field, id_var, 
         for i in range(0, 120):
             query = {'name': property_name, 'date': {'$gte': dt.datetime(
                 date.year, date.month, date.day), '$lt': dt.datetime(date.year, date.month, date.day) + dt.timedelta(days=1)}}
-            print('Retrieving ' + property_name +
+            print('\nRetrieving ' + property_name +
                   ' data from date: ' + str(date))
 
             for document in collection.find(query, {"date": 1, value_field: 1, "_id": 0}):
@@ -107,6 +119,9 @@ def get_data_by_date(collection, property_name, date_time, value_field, id_var, 
         query = {'name': property_name, 'date': {'$gte': dt.datetime(
             date.year, date.month, date.day), '$lt': dt.datetime(date.year, date.month, date.day) + dt.timedelta(days=1)}}
 
+        print('Retrieving ' + property_name +
+                  ' data from date: ' + str(date))
+        
         for document in collection.find(query, {"date": 1, value_field: 1, "_id": 0}):
             data_values.append(document[value_field])
             datetime_values.append(document['date'])
@@ -156,7 +171,7 @@ def get_data_by_date(collection, property_name, date_time, value_field, id_var, 
 
 def empty_plot():
     # draw an empty plot
-    empty_plot = hv.Curve([], max_height=400)
+    empty_plot = hv.Curve([])
 
     # Add text the plot indicating "There is no available data in the selected date"
     empty_plot = empty_plot * \
@@ -166,10 +181,10 @@ def empty_plot():
 
 
 def plot_data(data, x, y, title, xlabel, ylabel, groupby):
-    print("Making plot from data")
 
+    print("   - Creating plot for: " +  title)
     lines_plot = hvplot_dask_df_line(data, x=x, y=y, width=600, height=400, title=title, dic_opts={
-        'padding': 0.1, 'tools': ['hover'], 'xlabel': xlabel, 'ylabel': ylabel, 'axiswise': True, 'min_height': 400, 'responsive': True}, groupby=groupby)
+        'padding': 0.1, 'tools': ['hover'], 'xlabel': xlabel, 'ylabel': ylabel, 'axiswise': True, 'min_height': 400,  'responsive': True}, groupby=groupby)
 
     # GRAFICA SCATTER
     # Custom color map
@@ -181,95 +196,135 @@ def plot_data(data, x, y, title, xlabel, ylabel, groupby):
 
     # Plot scatter de una hora para TODOS los canales
     all_channels_scatter_plot = hvplot_dask_df_scatter(data, x=x, y=y, width=600, height=400, title=title,
-                                                       color=y, cmap=cmap_custom,  size=20, marker='o', dic_opts={'padding': 0.1, 'xlabel': xlabel, 'alpha': 0.30, 'ylabel': ylabel, 'clim': (0, 30)}, rasterize=True, dynamic=False)
+                                                       color=y, cmap=cmap_custom,  size=20, marker='o', dic_opts={'padding': 0.1, 'xlabel': xlabel, 'alpha': 0.30, 'ylabel': ylabel, 'clim': (0, 30), 'min_height': 400, 'responsive': True}, rasterize=True, dynamic=False)
 
     # Juntamos gráfico de lineas y scatters
     composite_plot = lines_plot * single_channel_scatter_plot * all_channels_scatter_plot
 
     return composite_plot
 
+def update_grid(property_name, panel):  
+    match property_name:
+        case 'scb_pixel_temperature':
+            panels_dict['grid'][0, 0] = panel
+        
+        case 'scb_temperature':
+            panels_dict['grid'][0, 1] = panel
+            
+        case 'scb_humidity':
+            panels_dict['grid'][0, 2] = panel
+            
+        case 'scb_pixel_an_current':
+            panels_dict['grid'][1, 0:2] = panel
+        
+        case 'scb_pixel_hv_monitored':
+            panels_dict['grid'][1, 2:3] = panel
+        
 
-def manage_plot(mongodb_collection, initial_data, title, start_date, date_picker, property_name, value_field, id_var, var_name, value_name, xlabel, ylabel, remove_temperature_anom, search_previous):
-
-    @pn.depends(date_picker.param.value)
+def create_plot_panel(initial_data, title, start_date, date_picker, property_name, value_field, id_var, var_name, value_name, xlabel, ylabel, remove_temperature_anom, search_previous):
+    
+    @pn.depends(date_picker.param.value, watch=True)
     def update_plot(date_picker):
-        print("start_date: " + str(start_date))
-        print("date_picker: " + str(date_picker))
+        print('\n[Updating] ' + property_name +  ' plot')
+        
+        # We need to create a new mongodb client connection since this is a fork process and mongodb client is not thread safe 
+        db = connect_to_database('localhost', 27017, 'CACO')
+        clusco_min_collection = db['CLUSCO_min']
 
-        if date_picker != start_date:
-            print('getting new dataframe')
-            data = get_data_by_date(collection=mongodb_collection,
+        
+        data = get_data_by_date(collection=clusco_min_collection,
                                     property_name=property_name,
                                     date_time=date_picker, value_field=value_field,
                                     id_var=id_var, var_name=var_name,
                                     value_name=value_name, remove_temperature_anom=remove_temperature_anom, search_previous=search_previous)
-            if len(data.index) != 0:
-                print('plotting and adding to grid')
-                plot = plot_data(data, id_var, value_name,
-                                 title, xlabel, ylabel, var_name)
-
-            else:
-                print('No data to print!')
-                plot = empty_plot()
+        
+        # close mongodb connection
+        db.client.close()
+        
+        if len(data.index) != 0:
+            plot = plot_data(data, id_var, value_name, title, xlabel, ylabel, var_name)
 
         else:
-            plot = plot_data(initial_data, id_var, value_name,
+             print('No data to plot!')
+             plot = empty_plot()
+        
+        
+        plot_panel = pn.panel(plot, widget_location='bottom', widgets={var_name: pn.widgets.DiscreteSlider}, linked_axes=False)
+        panels_dict.update({property_name: plot_panel})
+        
+        update_grid(property_name=property_name, panel=plot_panel)
+        
+        print('[Updating finished]')
+        return plot
+
+    plot = plot_data(initial_data, id_var, value_name,
                              title, xlabel, ylabel, var_name)
 
-        plot_panel = pn.panel(plot, widget_location='bottom', widgets={
-            var_name: pn.widgets.DiscreteSlider}, linked_axes=False)
-        return plot_panel
-
-    plot_panel = update_plot
-
+        
+    plot_panel = pn.panel(plot, widget_location='bottom', widgets={var_name: pn.widgets.DiscreteSlider}, linked_axes=False)
+    panels_dict.update({property_name: plot_panel})
+    
     return plot_panel
     
-     
+    
 if __name__ == '__main__':
+    tic = time.perf_counter()
+    
     pn.param.ParamMethod.loading_indicator = True
 
     # Setup BD Connection
     db = connect_to_database('localhost', 27017, 'CACO')
     clusco_min_collection = db['CLUSCO_min']
 
+
     date_filter = dt.date.today()
+    #date_filter = dt.date(2023, 1, 3) # To test a initial day without data
 
     # Data retrieved from database
     pacta_temperature_data = get_data_by_date(collection=clusco_min_collection, property_name='scb_pixel_temperature',
                                               date_time=date_filter, value_field='avg', id_var='date', var_name='channel', value_name='temperature', remove_temperature_anom=True)
 
+    # Start date based on the date looked up by pacta_temperature
+    # Nos aseguraremos de que los datos correspondan a la misma fecha, en caso de que se haya realizado la consulta en un dia sin datos y se haya buscado en el dia anterior
+    start_date = pacta_temperature_data.compute()['date'].dt.date[0]
+    
     scb_temperature_data = get_data_by_date(collection=clusco_min_collection, property_name='scb_temperature',
-                                            date_time=date_filter, value_field='avg', id_var='date', var_name='module', value_name='temperature', remove_temperature_anom=False)
+                                            date_time=start_date, value_field='avg', id_var='date', var_name='module', value_name='temperature', remove_temperature_anom=False)
 
     scb_humidity_data = get_data_by_date(collection=clusco_min_collection, property_name='scb_humidity',
-                                         date_time=date_filter, value_field='avg', id_var='date', var_name='module', value_name='humidity', remove_temperature_anom=False)
+                                         date_time=start_date, value_field='avg', id_var='date', var_name='module', value_name='humidity', remove_temperature_anom=False)
 
     scb_anode_current_data = get_data_by_date(collection=clusco_min_collection, property_name='scb_pixel_an_current',
-                                              date_time=date_filter, value_field='avg', id_var='date', var_name='channel', value_name='anode', remove_temperature_anom=False)
+                                              date_time=start_date, value_field='avg', id_var='date', var_name='channel', value_name='anode', remove_temperature_anom=False)
 
     hv_data = get_data_by_date(collection=clusco_min_collection, property_name='scb_pixel_hv_monitored',
-                               date_time=date_filter, value_field='avg', id_var='date', var_name='channel', value_name='hv', remove_temperature_anom=False)
+                               date_time=start_date, value_field='avg', id_var='date', var_name='channel', value_name='hv', remove_temperature_anom=False)
 
-    start_date = pacta_temperature_data.compute()['date'].dt.date[0]
-
+    
+    # close mongodb connection
+    db.client.close()
+    
     date_picker = pn.widgets.DatePicker(
         name='Date Selection', value=start_date, end=dt.date.today())
 
+    print("\nMaking plots...")
     #pacta_temp_plot_panel = manage_pacta_plot(clusco_min_collection, pacta_temperature_data, start_date, date_picker)
-    pacta_temp_plot_panel = manage_plot(clusco_min_collection, pacta_temperature_data, 'PACTA Temperature', start_date,
+    
+    
+    pacta_temp_plot_panel = create_plot_panel(pacta_temperature_data, 'PACTA Temperature', start_date,
                                         date_picker, 'scb_pixel_temperature', 'avg', 'date', 'channel', 'temperature', 'Date', 'Temperature (ºC)', True, False)
-    scb_temp_plot_panel = manage_plot(clusco_min_collection, scb_temperature_data, 'SCB Temperature', start_date,
+    scb_temp_plot_panel = create_plot_panel(scb_temperature_data, 'SCB Temperature', start_date,
                                       date_picker, 'scb_temperature', 'avg', 'date', 'module', 'temperature', 'Date', 'Temperature (ºC)', False, False)
-    scb_humidity_plot_panel = manage_plot(clusco_min_collection, scb_humidity_data, 'SCB Humidity', start_date,
+    scb_humidity_plot_panel = create_plot_panel(scb_humidity_data, 'SCB Humidity', start_date,
                                           date_picker, 'scb_humidity', 'avg', 'date', 'module', 'humidity', 'Date', 'Humidity (%)', False, False)
-    scb_anode_current_plot_panel = manage_plot(clusco_min_collection, scb_anode_current_data, 'Anode Current', start_date,
+    scb_anode_current_plot_panel = create_plot_panel(scb_anode_current_data, 'Anode Current', start_date,
                                                date_picker, 'scb_pixel_an_current', 'avg', 'date', 'channel', 'anode', 'Date', 'Anode Current (µA)', False, False)
-    hv_plot_panel = manage_plot(clusco_min_collection, hv_data, 'HV', start_date, date_picker,
+    hv_plot_panel = create_plot_panel(hv_data, 'HV', start_date, date_picker,
                                 'scb_pixel_hv_monitored', 'avg', 'date', 'channel', 'hv', 'Date', 'HV (V)', False, False)
     
     # Creamos grid
     grid = pn.GridSpec(sizing_mode='stretch_both',
-                       max_height=500, ncols=3, nrows=2)
+                       ncols=3, nrows=2, mode='override')
 
     # We create two grids in order two group with different columns arrangement
     grid[0, 0] = pacta_temp_plot_panel
@@ -277,11 +332,16 @@ if __name__ == '__main__':
     grid[0, 2] = scb_humidity_plot_panel
     grid[1, 0:2] = scb_anode_current_plot_panel
     grid[1, 2:3] = hv_plot_panel
-
-    bootstrap = pn.template.BootstrapTemplate(title='Clusco Reports')
+    
+    panels_dict['grid'] =  grid
+    
+    bootstrap = pn.template.MaterialTemplate(title='Clusco Reports')
 
     bootstrap.main.append(grid)
     bootstrap.sidebar.append(date_picker)
 
+    toc = time.perf_counter()
+    print(f"\nServer started in {toc - tic:0.4f} seconds")
+    
     pn.serve(bootstrap, port=5006, allow_websocket_origin='localhost:5006',
-             websocket_origin='localhost:5006', verbose=True, dev=True, num_procs=0, show=False)
+             websocket_origin='localhost:5006', verbose=True, dev=True, num_procs=1, show=False, admin=True)
