@@ -20,9 +20,11 @@ pn.extension(loading_spinner='dots', loading_color='#00204e', sizing_mode="stret
 pd.options.plotting.backend = 'holoviews'
 
 def disable_logo(plot, element):
+    """
+    Disables blokeh logo in plots
+    """
     plot.state.toolbar.logo = None
     
-
 
 panels_dict = {
   "scb_pixel_temperature": "empty",
@@ -51,16 +53,6 @@ def connect_to_database(host, port, database):
     return client[database]
 
 
-def preprocess_data(df, resample_rule='1H'):
-    """_summary_
-    Preprocess a dataframe by resampling it and filling in missing values.
-    """
-    df = df.resample(resample_rule).mean()
-    df = df.fillna(method='ffill')
-    df = df.fillna(method='bfill')
-    return df
-
-
 def hvplot_df_line(df, x, y, title, dic_opts, color='gray', groupby=None):
     """_summary_
     Plots a pandas dataframe line plot.
@@ -77,7 +69,8 @@ def hvplot_df_line(df, x, y, title, dic_opts, color='gray', groupby=None):
 
 def hvplot_df_max_min_avg_line(df, x, y, title, dic_opts):
     """_summary_
-    Plots a pandas dataframe line plot.
+    Plots a pandas dataframe line plot with max, min and average columns in df.
+    # TODO: Refactorize this to use only one function for all line plots.
     """
 
     dynamic_map = df.hvplot.line(x=x, y=['max', 'min', 'avg'], title=title, responsive=True, min_height=400, hover_cols=['x', 'y', 'Variable'])
@@ -91,7 +84,7 @@ def hvplot_df_max_min_avg_line(df, x, y, title, dic_opts):
 
 def hvplot_df_scatter(df, x, y, title, color, size, marker, dic_opts, cmap="reds", groupby=None, datashade=False, rasterize=False, dynamic=True):
     """_summary_
-    Plots a pandas dataframe line plot.
+    Plot a scatter graph from a pandas dataframe
     """
     if rasterize == False:
         plot = df.hvplot.scatter(x=x, y=y, title=title, color=color,
@@ -109,7 +102,10 @@ def hvplot_df_scatter(df, x, y, title, color, size, marker, dic_opts, cmap="reds
 
 
 def get_data_by_date(collection, property_name, date_time, value_field, id_var, var_name, value_name, remove_temperature_anom=False, search_previous=True):
-
+    """_summary_
+    Get data from mongodb collection filtering by date. If the search_previous flag is set to True, the function will search
+    for data in the previous days (until 120 days) if no data is found for the specified date.
+    """
     data_values = []
     datetime_values = []
 
@@ -161,7 +157,7 @@ def get_data_by_date(collection, property_name, date_time, value_field, id_var, 
             id_vars=[id_var], var_name=var_name, value_name=value_name)
         
         if remove_temperature_anom:
-            # Eliminamos valores de 0
+            # Removes 0 values
             values_field_name_attr = getattr(pandas_df_long, value_name)
             pandas_df_long = pandas_df_long[values_field_name_attr != 0]
 
@@ -171,10 +167,13 @@ def get_data_by_date(collection, property_name, date_time, value_field, id_var, 
             # Remove all values above 250
             pandas_df_long = pandas_df_long[values_field_name_attr < 250]
 
-        # Removes 'avg_' from channel name column
+        print("removing 'channel_' from channel rows values...")
+        print(pandas_df_long)
+        # Removes 'channel_' from channel rows values
         pandas_df_long[var_name] = pandas_df_long[var_name].str.replace(
             var_name+'_', '')
 
+        print(pandas_df_long)
         pandas_df_result = pandas_df_long
         
         del pandas_df, pandas_df_long, data_values, datetime_values
@@ -189,7 +188,7 @@ def get_data_by_date(collection, property_name, date_time, value_field, id_var, 
 
 
 def empty_plot():
-    # draw an empty plot
+    # Creates and return an empty plot
     empty_plot = hv.Curve([])
 
     # Add text the plot indicating "There is no available data in the selected date"
@@ -199,8 +198,8 @@ def empty_plot():
     return empty_plot
 
 
-def build_dataframe_with_min_max(df, x, y, groupby):
-   
+def build_dataframe_with_min_max(df, x, y):
+   # Build a pandas dataframe from the original dataframe and select the min and max values for each date
     new_df = df.groupby(x)[y].agg(['min', 'max', 'mean'])
     new_df = new_df.reset_index()
     #new_df = new_df.rename(columns={'min': 'min_'+y, 'max': 'max_'+y, 'mean': 'avg_'+y})
@@ -208,11 +207,11 @@ def build_dataframe_with_min_max(df, x, y, groupby):
     return new_df
     
 
-def plot_data(data, x, y, title, xlabel, ylabel, groupby):
+def plot_data(data, x, y, title, xlabel, ylabel, groupby, cmap_custom, clim):
     
     # Build a pandas dataframe from the original dataframe and select the min and max values for each date corresponding to each group
     
-    df_with_min_max_avg = build_dataframe_with_min_max(data, x, y, groupby)    
+    df_with_min_max_avg = build_dataframe_with_min_max(data, x, y)    
     
     print("   - Creating plot for: " +  title)    
     
@@ -224,22 +223,18 @@ def plot_data(data, x, y, title, xlabel, ylabel, groupby):
         'padding': 0.1, 'tools': ['hover'], 'xlabel': xlabel, 'ylabel': ylabel, 'axiswise': True}, groupby=groupby)
 
 
-    # Custom color map
-    cmap_custom = LinearSegmentedColormap.from_list('mycmap', [(
-        0, (0, 0, 1)), (18/30, (0, 1, 0)), (25/30, (1, 0.65, 0)), (26/30, (1, 0, 0)), (1, (1, 0, 0))])
-
     # Plot scatter from data for a single channel
     single_channel_scatter_plot = hvplot_df_scatter(data, x=x, y=y, title=title, color=y, cmap=cmap_custom, size=15, marker='o', dic_opts={
-        'padding': 0.1, 'tools': [''], 'xlabel': xlabel, 'ylabel': ylabel, 'clim': (0, 30), 'alpha': 0.5}, groupby=groupby)
+        'padding': 0.1, 'tools': [''], 'xlabel': xlabel, 'ylabel': ylabel, 'clim': clim, 'alpha': 0.5}, groupby=groupby)
 
     # Plot scatter from data for all channels (rasterized)
-    all_channels_scatter_plot = hvplot_df_scatter(data, x=x, y=y, title=title, color=y, cmap=cmap_custom,  size=20, marker='o', dic_opts={'padding': 0.1, 'tools': [''], 'xlabel': xlabel, 'alpha': 0.25, 'ylabel': ylabel, 'clim': (0, 30)}, rasterize=True, dynamic=False)
+    all_channels_scatter_plot = hvplot_df_scatter(data, x=x, y=y, title=title, color=y, cmap=cmap_custom,  size=20, marker='o', dic_opts={'padding': 0.1, 'tools': [''], 'xlabel': xlabel, 'alpha': 0.25, 'ylabel': ylabel, 'clim': clim}, rasterize=True, dynamic=False)
 
     # Juntamos gráfico de lineas y scatters
     composite_plot = lines_plot * single_channel_scatter_plot * all_channels_scatter_plot * max_line_plot
     
-    del df_with_min_max_avg
-    gc.collect()
+    # del df_with_min_max_avg
+    # gc.collect()
     
     #composite_plot = max_line_plot
     return composite_plot.opts(legend_position='top_left', toolbar='above', responsive=True, min_height=400, hooks=[disable_logo])
@@ -263,7 +258,7 @@ def update_grid(property_name, panel):
             panels_dict['grid'][1, 2:3] = panel
     
 
-def create_plot_panel(initial_data, title, date_picker, property_name, value_field, id_var, var_name, value_name, xlabel, ylabel, remove_temperature_anom, search_previous):
+def create_plot_panel(initial_data, title, date_picker, property_name, value_field, id_var, var_name, value_name, xlabel, ylabel, remove_temperature_anom, search_previous, cmap, climit):
 
     @pn.depends(date_picker.param.value, watch=True)
     def update_plot(date_picker):
@@ -285,7 +280,7 @@ def create_plot_panel(initial_data, title, date_picker, property_name, value_fie
             db.client.close()
             
             if len(data.index) != 0:
-                plot = plot_data(data, id_var, value_name, title, xlabel, ylabel, var_name)
+                plot = plot_data(data, id_var, value_name, title, xlabel, ylabel, var_name, cmap, climit)
 
             else:
                 print('No data to plot!')
@@ -310,7 +305,7 @@ def create_plot_panel(initial_data, title, date_picker, property_name, value_fie
             return plot
 
     plot = plot_data(initial_data, id_var, value_name,
-                              title, xlabel, ylabel, var_name)
+                              title, xlabel, ylabel, var_name, cmap, climit)
 
     c_widget = pn.widgets.DiscreteSlider
     c_widget.align = 'center'
@@ -380,12 +375,39 @@ def create_dashboard():
     print("\nMaking plots...")
     #pacta_temp_plot_panel = manage_pacta_plot(clusco_min_collection, pacta_temperature_data, start_date, date_picker)
     
+    # Custom color maps for scatter plots
+    cmap_temps = LinearSegmentedColormap.from_list('cmap_temps', [(
+        0, (0, 0, 1)), (18/30, (0, 1, 0)), (25/30, (1, 0.65, 0)), (26/30, (1, 0, 0)), (1, (1, 0, 0))])
     
-    pacta_temp_plot_panel = create_plot_panel(pacta_temperature_data, 'PACTA Temperature', date_picker, 'scb_pixel_temperature', 'avg', 'date', 'channel', 'temperature', 'Time', 'Temperature (ºC)', True, False)
-    scb_temp_plot_panel = create_plot_panel(scb_temperature_data, 'SCB Temperature', date_picker, 'scb_temperature', 'avg', 'date', 'module', 'temperature', 'Time', 'Temperature (ºC)', False, False)
-    scb_humidity_plot_panel = create_plot_panel(scb_humidity_data, 'SCB Humidity', date_picker, 'scb_humidity', 'avg', 'date', 'module', 'humidity', 'Time', 'Humidity (%)', False, False)
-    scb_anode_current_plot_panel = create_plot_panel(scb_anode_current_data, 'Anode Current', date_picker, 'scb_pixel_an_current', 'avg', 'date', 'channel', 'anode', 'Time', 'Anode Current (µA)', False, False)
-    hv_plot_panel = create_plot_panel(hv_data, 'HV', date_picker, 'scb_pixel_hv_monitored', 'avg', 'date', 'channel', 'hv', 'Date', 'HV (V)', False, False)
+    cmap_humidty = LinearSegmentedColormap.from_list('cmap_humidity', [
+        (0, (1, 0.64, 0)),
+        (10/80, (1, 0.92, 0)),
+        (40/80, (0, 1, 0)),
+        (70/80, (1, 0.92, 0)),
+        (74/80, (1, 0.64, 0)),
+        (80/80, (1, 0, 0))])
+    
+    cmap_anode = LinearSegmentedColormap.from_list('cmap_anode', [
+        (0, (0, 0, 1)),
+        (5/100, (0, 1, 0)),
+        (60/100, (1, 0.92, 0)),
+        (80/100, (1, 0.64, 0)),
+        (100/100, (1, 0, 0))])
+    
+    cmap_hv = LinearSegmentedColormap.from_list('cmap_hv', [
+        (0, (0, 0, 1)),
+        (10/1400, (0, 0, 1)),
+        (200/1400, (0, 1, 0)),
+        (950/1400, (1, 0.92, 0)),
+        (1200/1400, (1, 0.64, 0)),
+        (1400/1400, (1, 0, 0))])
+    
+    
+    pacta_temp_plot_panel = create_plot_panel(pacta_temperature_data, 'PACTA Temperature', date_picker, 'scb_pixel_temperature', 'avg', 'date', 'channel', 'temperature', 'Time', 'Temperature (ºC)', True, False, cmap_temps, (0, 30))
+    scb_temp_plot_panel = create_plot_panel(scb_temperature_data, 'SCB Temperature', date_picker, 'scb_temperature', 'avg', 'date', 'module', 'temperature', 'Time', 'Temperature (ºC)', False, False, cmap_temps, (0, 30))
+    scb_humidity_plot_panel = create_plot_panel(scb_humidity_data, 'SCB Humidity', date_picker, 'scb_humidity', 'avg', 'date', 'module', 'humidity', 'Time', 'Humidity (%)', False, False, cmap_humidty, (0, 80))
+    scb_anode_current_plot_panel = create_plot_panel(scb_anode_current_data, 'Anode Current', date_picker, 'scb_pixel_an_current', 'avg', 'date', 'channel', 'anode', 'Time', 'Anode Current (µA)', False, False, cmap_anode, (0, 100))
+    hv_plot_panel = create_plot_panel(hv_data, 'High Voltage', date_picker, 'scb_pixel_hv_monitored', 'avg', 'date', 'channel', 'hv', 'Date', 'HV (V)', False, False, cmap_hv, (10, 1400))
     
     # Creamos grid
     grid = pn.GridSpec(sizing_mode='stretch_both', ncols=3, nrows=2, mode='override')
