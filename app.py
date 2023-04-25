@@ -10,10 +10,11 @@ from pymongo import MongoClient
 import holoviews.operation.datashader as hd
 from matplotlib.colors import LinearSegmentedColormap
 import time
+import asyncio
 import gc
 
 gc.enable()
-#gc.set_debug(gc.DEBUG_STATS)
+#gc.set_debug(gc.DEBUG_STATS | gc.DEBUG_LEAK)  
 
 hv.extension('bokeh', logo=False)
 pn.extension(loading_spinner='dots', loading_color='#00204e', sizing_mode="stretch_width")
@@ -25,16 +26,6 @@ def disable_logo(plot, element):
     """
     plot.state.toolbar.logo = None
     
-
-panels_dict = {
-  "scb_pixel_temperature": "empty",
-  "scb_temperature": "empty",
-  "scb_humidity": "empty",
-  "scb_pixel_an_current": "empty",
-  "scb_pixel_hv_monitored": "empty"
-}
-
-
 
 def connect_to_database(host, port, database):
     """
@@ -159,21 +150,18 @@ def get_data_by_date(collection, property_name, date_time, value_field, id_var, 
         if remove_temperature_anom:
             # Removes 0 values
             values_field_name_attr = getattr(pandas_df_long, value_name)
-            pandas_df_long = pandas_df_long[values_field_name_attr != 0]
+            pandas_df_long = pandas_df_long.loc[values_field_name_attr != 0]
 
             # Remove all values below -25
-            pandas_df_long = pandas_df_long[values_field_name_attr > -25]
+            pandas_df_long = pandas_df_long.loc[values_field_name_attr > -25]
 
             # Remove all values above 250
-            pandas_df_long = pandas_df_long[values_field_name_attr < 250]
+            pandas_df_long = pandas_df_long.loc[values_field_name_attr < 250]
 
-        print("removing 'channel_' from channel rows values...")
-        print(pandas_df_long)
         # Removes 'channel_' from channel rows values
         pandas_df_long[var_name] = pandas_df_long[var_name].str.replace(
             var_name+'_', '')
 
-        print(pandas_df_long)
         pandas_df_result = pandas_df_long
         
         del pandas_df, pandas_df_long, data_values, datetime_values
@@ -233,14 +221,14 @@ def plot_data(data, x, y, title, xlabel, ylabel, groupby, cmap_custom, clim):
     # Juntamos gráfico de lineas y scatters
     composite_plot = lines_plot * single_channel_scatter_plot * all_channels_scatter_plot * max_line_plot
     
-    # del df_with_min_max_avg
-    # gc.collect()
+    del df_with_min_max_avg
+    gc.collect()
     
     #composite_plot = max_line_plot
     return composite_plot.opts(legend_position='top_left', toolbar='above', responsive=True, min_height=400, hooks=[disable_logo])
 
 
-def update_grid(property_name, panel):  
+def update_grid(property_name, panel, panels_dict):  
     match property_name:
         case 'scb_pixel_temperature':
             panels_dict['grid'][0, 0] = panel
@@ -258,10 +246,10 @@ def update_grid(property_name, panel):
             panels_dict['grid'][1, 2:3] = panel
     
 
-def create_plot_panel(initial_data, title, date_picker, property_name, value_field, id_var, var_name, value_name, xlabel, ylabel, remove_temperature_anom, search_previous, cmap, climit):
+def create_plot_panel(initial_data, title, date_picker, property_name, value_field, id_var, var_name, value_name, xlabel, ylabel, remove_temperature_anom, search_previous, cmap, climit, panels_dict):
 
     @pn.depends(date_picker.param.value, watch=True)
-    def update_plot(date_picker):
+    async def update_plot(date_picker):
         with pn.param.set_values(panels_dict[property_name], loading=True):
             print('\n[Updating] ' + property_name +  ' plot')
 
@@ -293,7 +281,7 @@ def create_plot_panel(initial_data, title, date_picker, property_name, value_fie
             plot_panel = pn.panel(plot, widget_location='bottom', widgets={var_name: c_widget}, sizing_mode='stretch_width', linked_axes=False)
             panels_dict.update({property_name: plot_panel})
             
-            update_grid(property_name=property_name, panel=plot_panel)
+            update_grid(property_name=property_name, panel=plot_panel, panels_dict=panels_dict)
             
             print('[Updating finished]')
             
@@ -320,6 +308,18 @@ def create_plot_panel(initial_data, title, date_picker, property_name, value_fie
     return plot_panel
 
 def create_dashboard():
+    
+    # Panels_dic act as a storage for all the panels created in the dashboard
+    # This is needed to update the panels when the date is changed
+    # The key is the property name and the value will be the panel as soon as dashboard is created.
+    panels_dict = {
+        "scb_pixel_temperature": "empty",
+        "scb_temperature": "empty",
+        "scb_humidity": "empty",
+        "scb_pixel_an_current": "empty",
+        "scb_pixel_hv_monitored": "empty"
+    }
+    
     tic = time.perf_counter()
     
     pn.param.ParamMethod.loading_indicator = True
@@ -338,7 +338,7 @@ def create_dashboard():
 
 
     # bug uncaught here
-    print(pacta_temperature_data)
+    #print(pacta_temperature_data)
     # Start date based on the date looked up by pacta_temperature
     # Nos aseguraremos de que los datos correspondan a la misma fecha, en caso de que se haya realizado la consulta en un dia sin datos y se haya buscado en el dia anterior
     if (len(pacta_temperature_data.index) > 0):
@@ -403,11 +403,11 @@ def create_dashboard():
         (1400/1400, (1, 0, 0))])
     
     
-    pacta_temp_plot_panel = create_plot_panel(pacta_temperature_data, 'PACTA Temperature', date_picker, 'scb_pixel_temperature', 'avg', 'date', 'channel', 'temperature', 'Time', 'Temperature (ºC)', True, False, cmap_temps, (0, 30))
-    scb_temp_plot_panel = create_plot_panel(scb_temperature_data, 'SCB Temperature', date_picker, 'scb_temperature', 'avg', 'date', 'module', 'temperature', 'Time', 'Temperature (ºC)', False, False, cmap_temps, (0, 30))
-    scb_humidity_plot_panel = create_plot_panel(scb_humidity_data, 'SCB Humidity', date_picker, 'scb_humidity', 'avg', 'date', 'module', 'humidity', 'Time', 'Humidity (%)', False, False, cmap_humidty, (0, 80))
-    scb_anode_current_plot_panel = create_plot_panel(scb_anode_current_data, 'Anode Current', date_picker, 'scb_pixel_an_current', 'avg', 'date', 'channel', 'anode', 'Time', 'Anode Current (µA)', False, False, cmap_anode, (0, 100))
-    hv_plot_panel = create_plot_panel(hv_data, 'High Voltage', date_picker, 'scb_pixel_hv_monitored', 'avg', 'date', 'channel', 'hv', 'Date', 'HV (V)', False, False, cmap_hv, (10, 1400))
+    pacta_temp_plot_panel = create_plot_panel(pacta_temperature_data, 'PACTA Temperature', date_picker, 'scb_pixel_temperature', 'avg', 'date', 'channel', 'temperature', 'Time', 'Temperature (ºC)', True, False, cmap_temps, (0, 30), panels_dict)
+    scb_temp_plot_panel = create_plot_panel(scb_temperature_data, 'SCB Temperature', date_picker, 'scb_temperature', 'avg', 'date', 'module', 'temperature', 'Time', 'Temperature (ºC)', False, False, cmap_temps, (0, 30), panels_dict)
+    scb_humidity_plot_panel = create_plot_panel(scb_humidity_data, 'SCB Humidity', date_picker, 'scb_humidity', 'avg', 'date', 'module', 'humidity', 'Time', 'Humidity (%)', False, False, cmap_humidty, (0, 80), panels_dict)
+    scb_anode_current_plot_panel = create_plot_panel(scb_anode_current_data, 'Anode Current', date_picker, 'scb_pixel_an_current', 'avg', 'date', 'channel', 'anode', 'Time', 'Anode Current (µA)', False, False, cmap_anode, (0, 100), panels_dict)
+    hv_plot_panel = create_plot_panel(hv_data, 'High Voltage', date_picker, 'scb_pixel_hv_monitored', 'avg', 'date', 'channel', 'hv', 'Date', 'HV (V)', False, False, cmap_hv, (10, 1400), panels_dict)
     
     # Creamos grid
     grid = pn.GridSpec(sizing_mode='stretch_both', ncols=3, nrows=2, mode='override')
@@ -439,8 +439,7 @@ def create_dashboard():
     gc.collect()
     return material_dashboard
     
-    
+   
 if __name__ == '__main__':
-    pn.serve(create_dashboard(), port=5006, allow_websocket_origin='localhost:5006', websocket_origin='localhost:5006', verbose=True, show=False, static_dirs={'images': './images'}, admin=True, admin_password='admin', dev=True, threaded=True, start=True)
-
+    pn.serve(create_dashboard, port=5006, allow_websocket_origin='localhost:5006', websocket_origin='localhost:5006', show=False, static_dirs={'images': './images'}, admin=True, threaded=True, num_threads=8)
     
