@@ -1,6 +1,5 @@
 import pandas as pd
 import datetime as dt
-import multiprocessing
 import hvplot.pandas
 import holoviews as hv
 import hvplot.pandas
@@ -10,8 +9,8 @@ from pymongo import MongoClient
 import holoviews.operation.datashader as hd
 from matplotlib.colors import LinearSegmentedColormap
 import time
-import asyncio
 import gc
+import threading
 
 gc.enable()
 #gc.set_debug(gc.DEBUG_STATS | gc.DEBUG_LEAK)  
@@ -38,7 +37,7 @@ def connect_to_database(host, port, database):
     except:
         print(
             f"Connection to database ({host}:{port}) failed.\nCheck if the database is running.")
-        exit()
+        return None
 
     print("Database connection successful.")
     return client[database]
@@ -90,7 +89,6 @@ def hvplot_df_scatter(df, x, y, title, color, size, marker, dic_opts, cmap="reds
     plot.opts(**dict(options))
 
     return plot
-
 
 def get_data_by_date(collection, property_name, date_time, value_field, id_var, var_name, value_name, remove_temperature_anom=False, search_previous=True):
     """_summary_
@@ -221,10 +219,10 @@ def plot_data(data, x, y, title, xlabel, ylabel, groupby, cmap_custom, clim):
     # Juntamos gráfico de lineas y scatters
     composite_plot = lines_plot * single_channel_scatter_plot * all_channels_scatter_plot * max_line_plot
     
+    # Not sure if this have any effects since we are using hvplot_df_max_min_avg_line with this dataframe
     del df_with_min_max_avg
     gc.collect()
     
-    #composite_plot = max_line_plot
     return composite_plot.opts(legend_position='top_left', toolbar='above', responsive=True, min_height=400, hooks=[disable_logo])
 
 
@@ -247,14 +245,23 @@ def update_grid(property_name, panel, panels_dict):
     
 
 def create_plot_panel(initial_data, title, date_picker, property_name, value_field, id_var, var_name, value_name, xlabel, ylabel, remove_temperature_anom, search_previous, cmap, climit, panels_dict):
-
+    
     @pn.depends(date_picker.param.value, watch=True)
-    async def update_plot(date_picker):
-        with pn.param.set_values(panels_dict[property_name], loading=True):
+    def thread_update_plot_task(date_picker):
+        print('calling threaded task')
+        t = threading.Thread(target=update_plot, args=(date_picker, ))
+        t.daemon = False
+        t.start() 
+        
+    @pn.io.with_lock
+    def update_plot(date_picker):
+        with pn.param.set_values(panels_dict[property_name], loading=True):            
+          
             print('\n[Updating] ' + property_name +  ' plot')
 
             # We need to create a new mongodb client connection since this is a fork process and mongodb client is not thread safe 
             db = connect_to_database('localhost', 27017, 'CACO')
+            
             clusco_min_collection = db['CLUSCO_min']
 
             
@@ -268,7 +275,7 @@ def create_plot_panel(initial_data, title, date_picker, property_name, value_fie
             db.client.close()
             
             if len(data.index) != 0:
-                plot = plot_data(data, id_var, value_name, title, xlabel, ylabel, var_name, cmap, climit)
+                plot = plot_data(data, id_var, value_name,title + ' (' +  str(date_picker) + ')', xlabel, ylabel, var_name, cmap, climit)
 
             else:
                 print('No data to plot!')
@@ -293,7 +300,7 @@ def create_plot_panel(initial_data, title, date_picker, property_name, value_fie
             return plot
 
     plot = plot_data(initial_data, id_var, value_name,
-                              title, xlabel, ylabel, var_name, cmap, climit)
+                              title + ' (' +  str(date_picker.value) + ')', xlabel, ylabel, var_name, cmap, climit)
 
     c_widget = pn.widgets.DiscreteSlider
     c_widget.align = 'center'
@@ -307,7 +314,7 @@ def create_plot_panel(initial_data, title, date_picker, property_name, value_fie
     
     return plot_panel
 
-def create_dashboard():
+def create_dashboard(template):
     
     # Panels_dic act as a storage for all the panels created in the dashboard
     # This is needed to update the panels when the date is changed
@@ -324,9 +331,27 @@ def create_dashboard():
     
     pn.param.ParamMethod.loading_indicator = True
 
+    template.main.objects[0][0][2].object = '''<h1 style="text-align:center">Getting data...</h1>'''
+    
     # Setup BD Connection
     db = connect_to_database('localhost', 27017, 'CACO')
+    
+    if (db == None):
+        template.main.objects[0][0] = pn.Column()
+        template.sidebar.objects[0][0] = pn.Column()
+        
+        db_error_image = pn.pane.PNG('./images/db_error.png', width=100, align='center')
+        db_error_text = pn.pane.Markdown('''<h1 style="text-align:center">Connection to database failed.
+            Check if the database is running.</h1>''')
+        main_error_col = pn.Column(pn.layout.VSpacer(), db_error_image,  db_error_text, pn.layout.VSpacer(), sizing_mode='stretch_both')
+        
+        template.main.objects[0][0] = main_error_col 
+            
+        exit()
+    
+    
     clusco_min_collection = db['CLUSCO_min']
+    
 
 
     date_filter = dt.date.today()
@@ -369,11 +394,12 @@ def create_dashboard():
     # close mongodb connection
     db.client.close()
     
+    template.main.objects[0][0][2].object = '''<h1 style="text-align:center">Making plots...</h1>'''
+    
     date_picker = pn.widgets.DatePicker(
         name='Date Selection', value=start_date, end=dt.date.today())
 
     print("\nMaking plots...")
-    #pacta_temp_plot_panel = manage_pacta_plot(clusco_min_collection, pacta_temperature_data, start_date, date_picker)
     
     # Custom color maps for scatter plots
     cmap_temps = LinearSegmentedColormap.from_list('cmap_temps', [(
@@ -409,6 +435,8 @@ def create_dashboard():
     scb_anode_current_plot_panel = create_plot_panel(scb_anode_current_data, 'Anode Current', date_picker, 'scb_pixel_an_current', 'avg', 'date', 'channel', 'anode', 'Time', 'Anode Current (µA)', False, False, cmap_anode, (0, 100), panels_dict)
     hv_plot_panel = create_plot_panel(hv_data, 'High Voltage', date_picker, 'scb_pixel_hv_monitored', 'avg', 'date', 'channel', 'hv', 'Date', 'HV (V)', False, False, cmap_hv, (10, 1400), panels_dict)
     
+    template.main.objects[0][0][2].object = '''<h1 style="text-align:center">Deploying dashboard...</h1>'''
+    
     # Creamos grid
     grid = pn.GridSpec(sizing_mode='stretch_both', ncols=3, nrows=2, mode='override')
 
@@ -421,25 +449,53 @@ def create_dashboard():
     
     panels_dict['grid'] =  grid
     
-    material_dashboard = pn.template.MaterialTemplate(title='Clusco Reports', header_background='#00204e', favicon='/images/favicon.ico')
+    #material_dashboard = pn.template.MaterialTemplate(title='Clusco Reports', header_background='#00204e', favicon='/images/favicon.ico')
 
+    template.sidebar.objects[0][0][2].object = '''<h1 style="text-align:center">Generating widgets...</h1>'''
     png_pane = pn.pane.PNG('./images/cta-logo.png', width=200, align='center')
     sidebar_col = pn.Column(pn.layout.HSpacer(), png_pane, pn.layout.HSpacer(), date_picker)
-    material_dashboard.main.append(grid)
-    material_dashboard.sidebar.append(sidebar_col)
     
-    #material_dashboard.sidebar.append(date_picker)
+    # Append grid to template main
+    #print("Updating", template.main.objects)
+    template.main.objects[0].sizing_mode = 'stretch_both'
+    template.main.objects[0][0] = grid
+        
+    # Append content to template sidebar
+    #print("Updating", template.main.objects)
+    template.sidebar.objects[0].sizing_mode = 'stretch_both'
+    template.sidebar.objects[0][0] = sidebar_col
     
-
+    
     toc = time.perf_counter()
     print(f"\nServer started in {toc - tic:0.4f} seconds")
     
-    
     del pacta_temperature_data, scb_temperature_data, scb_humidity_data, scb_anode_current_data, hv_data
     gc.collect()
+    
+
+def get_user_page():
+
+    material_dashboard = pn.template.MaterialTemplate(title='Clusco Reports', header_background='#00204e', favicon='/images/favicon.ico')
+    
+    # MAIN
+    loading = pn.indicators.LoadingSpinner(value=True, width=100, height=100, align='center')
+    loading_text = pn.pane.Markdown('''<h1 style="text-align:center">Loading... </h1>''')
+    material_dashboard.main.append(pn.Column(pn.Column(pn.layout.VSpacer(), loading, loading_text, pn.layout.VSpacer(), sizing_mode='stretch_both')))
+    
+    # SIDEBAR
+    loading_sidebar = pn.indicators.LoadingSpinner(value=True, width=25, height=25, align='center')
+    logo_sidebar = pn.pane.PNG('./images/cta-logo.png', width=200, align='center')
+    loading_text_sidebar = pn.pane.Markdown(''' ''')
+    material_dashboard.sidebar.append(pn.Column(pn.Column(pn.layout.VSpacer(), logo_sidebar, pn.layout.VSpacer(), loading_sidebar, loading_text_sidebar, pn.layout.VSpacer(), sizing_mode='stretch_both')))
+    
+    
+    t = threading.Thread(target=create_dashboard, args=(material_dashboard, ))
+    t.daemon = True
+    t.start() 
+
+    # Returns the reference from first layouts element instead of a copy
     return material_dashboard
     
-   
 if __name__ == '__main__':
-    pn.serve(create_dashboard, port=5006, allow_websocket_origin='localhost:5006', websocket_origin='localhost:5006', show=False, static_dirs={'images': './images'}, admin=True, threaded=True, num_threads=8)
+    pn.serve(get_user_page, port=5006, show=False, static_dirs={'images': './images'}, admin=True, title='Clusco Reports')
     
