@@ -1,15 +1,16 @@
 import pandas as pd
 import datetime as dt
 import holoviews as hv
+import holoviews.operation.datashader as hd
 import hvplot.pandas
 import panel as pn
 import datashader as ds
 from pymongo import MongoClient
-import holoviews.operation.datashader as hd
 from matplotlib.colors import LinearSegmentedColormap
 import time
 import gc
 import threading
+import sys, os
 
 gc.enable()
 #gc.set_debug(gc.DEBUG_STATS | gc.DEBUG_LEAK)
@@ -19,6 +20,19 @@ pn.extension(loading_spinner='dots', loading_color='#00204e',
              sizing_mode="stretch_width")
 pd.options.plotting.backend = 'holoviews'
 
+
+def restart_server_if_empty_task(interval_sec=60):
+    while True:
+        time.sleep(interval_sec)
+        
+        print('Checking if server is empty to perform restart...')
+        if pn.state.session_info['live'] == 0:
+            print("Restarting server...")
+            os.execv(sys.executable, ['python'] + sys.argv)
+        
+# Global variable to store the thread that will restart the server if it is empty
+restart_server_thread_task = threading.Thread(target=restart_server_if_empty_task)
+restart_server_thread_task.daemon = True
 
 def disable_logo(plot, element):
     """
@@ -172,7 +186,7 @@ def get_data_by_date(collection, property_name, date_time, value_field, id_var, 
         pandas_df.sort_index(inplace=True)
 
         # Print pandas dataframe memory usage to console
-        pandas_df.info(memory_usage='deep')
+        #pandas_df.info(memory_usage='deep')
 
         del data_values, datetime_values
         gc.collect()
@@ -256,22 +270,24 @@ def create_plot_panel(initial_data, title, date_picker, property_name, value_fie
         result_panel = None
         match panel_name_id:
             case 'scb_pixel_temperature':
-                result_panel = template.main.objects[0][0][0, 0]
+                result_panel = template.main[0][0][0, 0]
 
             case 'scb_temperature':
-                result_panel = template.main.objects[0][0][0, 1]
+                result_panel = template.main[0][0][0, 1]
 
             case 'scb_humidity':
-                result_panel = template.main.objects[0][0][0, 2]
+                result_panel = template.main[0][0][0, 2]
 
             case 'scb_pixel_an_current':
-                result_panel = template.main.objects[0][0][1, 0]
+                result_panel = template.main[0][0][1, 0]
 
             case 'scb_pixel_hv_monitored':
-                result_panel = template.main.objects[0][0][1, 2]
+                result_panel = template.main[0][0][1, 2]
 
+        print('result_panel in getter', result_panel)
         return result_panel
 
+    #@pn.io.with_lock
     def update_plot(date_picker):
         with pn.param.set_values(get_panel_by_property(property_name), loading=True):
 
@@ -315,27 +331,24 @@ def create_plot_panel(initial_data, title, date_picker, property_name, value_fie
 
             return plot
 
+    #@pn.io.with_lock
     def update_grid(panel):
+
         match property_name:
             case 'scb_pixel_temperature':
-                del template.main.objects[0][0][0, 0]
-                template.main.objects[0][0][0, 0] = panel
+                template.main[0][0][0, 0] = panel
 
             case 'scb_temperature':
-                del template.main.objects[0][0][0, 1]
-                template.main.objects[0][0][0, 1] = panel
+                template.main[0][0][0, 1] = panel
 
             case 'scb_humidity':
-                del template.main.objects[0][0][0, 2]
-                template.main.objects[0][0][0, 2] = panel
+                template.main[0][0][0, 2] = panel
 
             case 'scb_pixel_an_current':
-                del template.main.objects[0][0][1, 0:2]
-                template.main.objects[0][0][1, 0:2] = panel
+                template.main[0][0][1, 0:2] = panel
 
             case 'scb_pixel_hv_monitored':
-                del template.main.objects[0][0][1, 2:3]
-                template.main.objects[0][0][1, 2:3] = panel
+                template.main[0][0][1, 2:3] = panel
 
         gc.collect()
 
@@ -357,27 +370,31 @@ def create_plot_panel(initial_data, title, date_picker, property_name, value_fie
 
 def create_dashboard(template):
 
+    print('Creating dashboard')
+    
     tic = time.perf_counter()
 
     pn.param.ParamMethod.loading_indicator = True
 
-    template.main.objects[0][0][2].object = '''<h1 style="text-align:center">Getting data...</h1>'''
+    template.main[0][0][2].object = '''<h1 style="text-align:center">Getting data...</h1>'''
 
     # Setup BD Connection
     db = connect_to_database('localhost', 27017, 'CACO')
 
     if (db == None):
-        template.main.objects[0][0] = pn.Column()
-        template.sidebar.objects[0][0] = pn.Column()
+        template.main[0][0] = pn.Column()
+        template.sidebar[0][0] = pn.Column()
 
         db_error_image = pn.pane.PNG(
             './images/db_error.png', width=100, align='center')
+        
         db_error_text = pn.pane.Markdown('''<h1 style="text-align:center">Connection to database failed.
             Check if the database is running.</h1>''')
+        
         main_error_col = pn.Column(pn.layout.VSpacer(
         ), db_error_image,  db_error_text, pn.layout.VSpacer(), sizing_mode='stretch_both')
 
-        template.main.objects[0][0] = main_error_col
+        template.main[0][0] = main_error_col
 
         exit()
 
@@ -423,7 +440,7 @@ def create_dashboard(template):
     # close mongodb connection
     db.client.close()
 
-    template.main.objects[0][0][2].object = '''<h1 style="text-align:center">Making plots...</h1>'''
+    template.main[0][0][2].object = '''<h1 style="text-align:center">Making plots...</h1>'''
 
     date_picker = pn.widgets.DatePicker(
         name='Date Selection', value=start_date, end=dt.date.today())
@@ -468,7 +485,7 @@ def create_dashboard(template):
     hv_plot_panel = create_plot_panel(hv_data, 'High Voltage', date_picker, 'scb_pixel_hv_monitored',
                                       'avg', 'date', 'channel', 'hv', 'Date', 'HV (V)', False, False, cmap_hv, (10, 1400), template)
 
-    template.main.objects[0][0][2].object = '''<h1 style="text-align:center">Deploying dashboard...</h1>'''
+    template.main[0][0][2].object = '''<h1 style="text-align:center">Deploying dashboard...</h1>'''
 
     # Creates a grid from GridSpec and adds plots to it
     grid = pn.GridSpec(sizing_mode='stretch_both',
@@ -482,34 +499,38 @@ def create_dashboard(template):
 
     #print ("Grid Object Overview", grid.objects)
 
-    print(grid.grid[[]])
-    template.sidebar.objects[0][0][2].object = '''<h1 style="text-align:center">Generating widgets...</h1>'''
+    template.sidebar[0][0][2].object = '''<h1 style="text-align:center">Generating widgets...</h1>'''
     png_pane = pn.pane.PNG('./images/cta-logo.png', width=200, align='center')
     sidebar_col = pn.Column(pn.layout.HSpacer(), png_pane,
                             pn.layout.HSpacer(), date_picker)
 
     # Append grid to template main
     #print("Updating", template.main.objects)
-    template.main.objects[0].sizing_mode = 'stretch_both'
-    template.main.objects[0][0] = grid
+    template.main[0].sizing_mode = 'stretch_both'
+    template.main[0][0] = grid
 
     # Append content to template sidebar
     #print("Updating", template.main.objects)
     template.sidebar.objects[0].sizing_mode = 'stretch_both'
-    template.sidebar.objects[0][0] = sidebar_col
+    template.sidebar[0][0] = sidebar_col
 
     toc = time.perf_counter()
     print(f"\nServer started in {toc - tic:0.4f} seconds")
 
-    del pacta_temperature_data, scb_temperature_data, scb_humidity_data, scb_anode_current_data, hv_data, clusco_min_collection, db
+    del pacta_temperature_data, scb_temperature_data, scb_humidity_data, scb_anode_current_data, hv_data, clusco_min_collection, db, pacta_temp_plot_panel, scb_temp_plot_panel, scb_humidity_plot_panel, scb_anode_current_plot_panel, hv_plot_panel
     gc.collect()
-
-
+    
 def destroyed(session_context):
     print("Session destroyed", session_context)
     gc.collect()
+    
+    if  not restart_server_thread_task.is_alive():
+        print("Starting restart server thread...")
+        restart_server_thread_task.start()
 
 
+
+    
 def get_user_page():
 
     material_dashboard = pn.template.MaterialTemplate(
@@ -526,23 +547,20 @@ def get_user_page():
     ), loading, loading_text, pn.layout.VSpacer(), sizing_mode='stretch_both')))
 
     # SIDEBAR
-    loading_sidebar = pn.indicators.LoadingSpinner(
-        value=True, width=25, height=25, align='center')
+    loading_sidebar = pn.indicators.LoadingSpinner(value=True, width=25, height=25, align='center')
 
-    logo_sidebar = pn.pane.PNG(
-        './images/cta-logo.png', width=200, align='center')
+    logo_sidebar = pn.pane.PNG('./images/cta-logo.png', width=200, align='center')
     loading_text_sidebar = pn.pane.Markdown(''' ''')
 
-    material_dashboard.sidebar.append(pn.Column(pn.Column(pn.layout.VSpacer(), logo_sidebar, pn.layout.VSpacer(
-    ), loading_sidebar, loading_text_sidebar, pn.layout.VSpacer(), sizing_mode='stretch_both')))
+    material_dashboard.sidebar.append(pn.Column(pn.Column(pn.layout.VSpacer(), logo_sidebar, pn.layout.VSpacer(), loading_sidebar, loading_text_sidebar, pn.layout.VSpacer(), sizing_mode='stretch_both')))
 
     # Config callback when session is destroyed
     pn.state.on_session_destroyed(destroyed)
 
-    t = threading.Thread(target=create_dashboard, args=(material_dashboard, ))
-    t.daemon = True
-    t.start()
-
+    create_dashboard_thread_task = threading.Thread(target=create_dashboard, args=(material_dashboard, ))
+    create_dashboard_thread_task.daemon = True
+    create_dashboard_thread_task.start()
+    
     return material_dashboard
 
 
