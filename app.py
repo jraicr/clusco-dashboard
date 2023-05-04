@@ -89,7 +89,7 @@ def hvplot_df_max_min_avg_line(df, x, y, title, dic_opts, category):
     options = list(dic_opts.items())
     
     dynamic_map = max_line * mean_line * min_line
-    #dynamic_map.opts(**dict(options))
+    dynamic_map.opts(**dict(options))
 
     return dynamic_map
 
@@ -103,8 +103,8 @@ def hvplot_df_scatter(df, x, y, title, color, size, marker, dic_opts, cmap="reds
                                  size=size, marker=marker, cmap=cmap, groupby=groupby, datashade=datashade, rasterize=rasterize, dynamic=dynamic, responsive=True, min_height=400)
 
     else:
-        plot = df.hvplot.scatter(x=x, y=y, title=title, color=color,
-                                 marker=marker, cmap=cmap, groupby=groupby, datashade=datashade, rasterize=rasterize, dynamic=dynamic, responsive=True, min_height=400, label='mean rasterized values')
+        plot = df.hvplot.scatter(x=x, y=y, title=title, color=color, label='rasterized values',
+                                 marker=marker, cmap=cmap, groupby=groupby, datashade=datashade, rasterize=rasterize, dynamic=dynamic, responsive=True, min_height=400)
 
     options = list(dic_opts.items())
     plot.opts(**dict(options))
@@ -216,23 +216,27 @@ def build_min_max_avg(df, x, y, category):
     Build a dataframe with the min, max and avg values for each date
     """
     def process_chunk(df_chunk):
+        # Exclude the last date from the chunk
+        last_date = df_chunk.index[-1]
+        df_chunk = df_chunk[df_chunk.index != last_date]
+
         # Group by date and get the max, min and avg values
         df_agg = df_chunk.groupby(x).agg(
             max=(y, 'max'),
             min=(y, 'min'),
             mean=(y, 'mean'),
-        ).rename(columns={'mean':'avg'}).reset_index()
+        ).rename(columns={'mean': 'avg'}).reset_index()
 
         # Merge with the original DataFrame to get the category for the max and min values
         df_agg = df_agg.merge(
-            df_chunk,
+            df_chunk.reset_index(),
             left_on=[x, 'max'],
             right_on=[x, y],
             how='left'
         ).rename(columns={category: 'max_' + category}).drop(columns=y)
 
         df_agg = df_agg.merge(
-            df_chunk,
+            df_chunk.reset_index(),
             left_on=[x, 'min'],
             right_on=[x, y],
             how='left'
@@ -249,40 +253,38 @@ def build_min_max_avg(df, x, y, category):
 
         return df_agg
 
-    # Split the data into chunks and process each chunk separately
-    chunksize = 40000
+    # Split the data into chunks and process each chunk separately .
+    # This is useful to avoid RAM memory issues, since the dataframe could be too big.
+    chunksize = 100000
     result = []
+    remaining_rows = pd.DataFrame()
     for i in range(0, len(df), chunksize):
-        df_chunk = df.iloc[i:i+chunksize]
+        df_chunk = pd.concat([remaining_rows, df.iloc[i:i+chunksize]])
         result.append(process_chunk(df_chunk))
+        
+        # Save the remaining rows for the next iteration 
+        # Useful to avoid losing the last date of the chunk and to avoid having duplicated rows in the next chunk
+        if i+chunksize-1 < len(df):
+            last_date = df.iloc[i+chunksize-1].name
+        else:
+            last_date = df.iloc[-1].name
+        remaining_rows = df[df.index == last_date]
+
+    # Process the remaining rows
+    result.append(process_chunk(remaining_rows))
 
     # Concatenate the results
     df_agg = pd.concat(result)
 
     return df_agg
 
-def build_dataframe_with_min_max(df, x, y):
-   # Build a pandas dataframe from the original dataframe and select the min and max values for each datetime value  
-   
-    new_df = df.groupby(x)[y].agg(['min', 'max', 'mean'])
-    new_df = new_df.reset_index()
-    #new_df = new_df.rename(columns={'min': 'min_'+y, 'max': 'max_'+y, 'mean': 'avg_'+y})
-    new_df.rename(columns={'mean': 'avg'}, inplace=True)
-
-    # index by date
-    new_df.set_index(x, inplace=True)
-
-    # Sort by date
-    new_df.sort_index(inplace=True)
-
-    return new_df
-
-
 def plot_data(data, x, y, title, xlabel, ylabel, groupby, cmap_custom, clim):
 
-    # Build a pandas dataframe from the original dataframe and select the min and max values for each date corresponding to each group
-    # df_with_min_max_avg = build_dataframe_with_min_max(data, x, y)
+    # Build a pandas dataframe from the original dataframe and select the min and max values for each date
     df_with_min_max_avg = build_min_max_avg(data, x, y, groupby)
+    
+    # Just for debugging purposes: Check if we have duplicated indexes (dates) in the dataframe
+    # print(df_with_min_max_avg[df_with_min_max_avg.index.duplicated(keep=False)])
 
     max_line_plot = hvplot_df_max_min_avg_line(df_with_min_max_avg, x=x, y=y, title=title, dic_opts={
         'padding': 0.1, 'tools': ['hover'], 'xlabel': xlabel, 'ylabel': ylabel, 'axiswise': True, 'show_legend': True}, category=groupby)
@@ -301,15 +303,12 @@ def plot_data(data, x, y, title, xlabel, ylabel, groupby, cmap_custom, clim):
 
     # Juntamos gráfico de lineas y scatters
     composite_plot = lines_plot * single_channel_scatter_plot  * max_line_plot * all_channels_scatter_plot
-
-    # composite_plot = lines_plot * single_channel_scatter_plot * \
-    #     all_channels_scatter_plot
         
     # Not sure if this have any effects since we are using hvplot_df_max_min_avg_line with this dataframe
     del df_with_min_max_avg, data
     gc.collect()
 
-    return composite_plot.opts(legend_position='top', toolbar='above', responsive=True, min_height=500, hooks=[disable_logo], show_legend=True, legend_opts={"click_policy": "hide"})
+    return composite_plot.opts(legend_position='top', toolbar='above', responsive=True, min_height=500, hooks=[disable_logo], show_legend=True, legend_opts={"click_policy": "hide"}, show_grid=True)
 
 def create_plot_panel(initial_data, title, date_picker, property_name, value_field, id_var, var_name, value_name, xlabel, ylabel, remove_temperature_anom, search_previous, cmap, climit, template):
 
@@ -351,6 +350,23 @@ def create_plot_panel(initial_data, title, date_picker, property_name, value_fie
 
             # We need to create a new mongodb client connection since this is a fork process and mongodb client is not thread safe
             db = connect_to_database('localhost', 27017, 'CACO')
+
+            if (db == None):
+                template.main[0][0] = pn.Column()
+                template.sidebar[0][0] = pn.Column()
+
+                db_error_image = pn.pane.PNG(
+                    './images/db_error.png', width=100, align='center')
+                
+                db_error_text = pn.pane.Markdown('''<h1 style="text-align:center">Connection to database failed.
+                    Check if the database is running.</h1>''')
+                
+                main_error_col = pn.Column(pn.layout.VSpacer(
+                ), db_error_image,  db_error_text, pn.layout.VSpacer(), sizing_mode='stretch_both')
+
+                template.main[0][0] = main_error_col
+
+                exit()
 
             clusco_min_collection = db['CLUSCO_min']
 
