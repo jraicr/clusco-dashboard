@@ -1,24 +1,56 @@
 import pandas as pd
 import datetime as dt
-import holoviews as hv
-import holoviews.operation.datashader as hd
-import hvplot.pandas
+import holoviews as hv # noqa
+import holoviews.operation.datashader as hd # noqa
+import hvplot.pandas # noqa
 import panel as pn
-import datashader as ds
-from pymongo import MongoClient
+import datashader as ds # noqa
 from matplotlib.colors import LinearSegmentedColormap
 import time
 import gc
 import threading
-import sys, os
+import sys
+import os
+import database
 
+# from dashboard_utils import dashboard_utils.update_loading_message, dashboard_utils.display_database_error
+import dashboard_utils
+    
 gc.enable()
 #gc.set_debug(gc.DEBUG_STATS | gc.DEBUG_LEAK)
 
-hv.extension('bokeh', logo=False)
+hv.extension('bokeh', logo=False) 
 pn.extension(loading_spinner='dots', loading_color='#00204e', sizing_mode="stretch_width")
 pd.options.plotting.backend = 'holoviews'
 pn.config.throttled = True
+
+
+# Custom color maps
+cmap_temps = LinearSegmentedColormap.from_list('cmap_temps', [(
+        0, (0, 0, 1)), (18/30, (0, 1, 0)), (25/30, (1, 0.65, 0)), (26/30, (1, 0, 0)), (1, (1, 0, 0))])
+
+cmap_humidty = LinearSegmentedColormap.from_list('cmap_humidity', [
+        (0, (1, 0.64, 0)),
+        (10/80, (1, 0.92, 0)),
+        (40/80, (0, 1, 0)),
+        (70/80, (1, 0.92, 0)),
+        (74/80, (1, 0.64, 0)),
+        (80/80, (1, 0, 0))])
+
+cmap_anode = LinearSegmentedColormap.from_list('cmap_anode', [
+        (0, (0, 0, 1)),
+        (5/100, (0, 1, 0)),
+        (60/100, (1, 0.92, 0)),
+        (80/100, (1, 0.64, 0)),
+        (100/100, (1, 0, 0))])
+
+cmap_hv = LinearSegmentedColormap.from_list('cmap_hv', [
+        (0, (0, 0, 1)),
+        (10/1400, (0, 0, 1)),
+        (200/1400, (0, 1, 0)),
+        (950/1400, (1, 0.92, 0)),
+        (1200/1400, (1, 0.64, 0)),
+        (1400/1400, (1, 0, 0))])
 
 def restart_server_if_empty_task(interval_sec=60):
     while True:
@@ -39,30 +71,12 @@ def disable_logo(plot, element):
     """
     plot.state.toolbar.logo = None
 
-
-def connect_to_database(host, port, database):
-    """
-    Connect to a MongoDB database and return a client object.
-    """
-    try:
-        client = MongoClient(host=host, port=port,
-                             serverSelectionTimeoutMS=2000)
-        client.server_info()
-    except:
-        print(
-            f"Connection to database ({host}:{port}) failed.\nCheck if the database is running.")
-        return None
-
-    print("Database connection successful.")
-    return client[database]
-
-
 def hvplot_df_line(df:pd.DataFrame, x, y, title:str, dic_opts:dict, groupby:str, color:str='green'):
     """
     Plots a pandas dataframe line plot.
     """
     
-    dynamic_map = df.hvplot.line(x=x, y=y, title=title, color=color, groupby=groupby,
+    dynamic_map = df.hvplot.line(x=x, y=y, title=title, color=color, groupby=groupby, hover_cols='all',
                                  label='selected ' + groupby,  responsive=True, min_height=400, muted_alpha=0)
 
     
@@ -80,16 +94,19 @@ def hvplot_df_max_min_avg_line(df, x, y, title, dic_opts, category):
 
     # dynamic_map = df.hvplot.line(x=x, y=['max', 'min', 'mean'], title=title,
     #                              responsive=True, min_height=400, hover_cols=[x,y, 'max_' + category, 'min_' + category])
-    max_line = df.hvplot.line(x=x, y='max', title=title, responsive=True, min_height=400, hover_cols=['x', 'y', 'max_' + category], label='max', color='red').opts(show_legend=True, alpha=1, muted_alpha=0)
-        
-    min_line = df.hvplot.line(x=x, y='min', title=title, responsive=True, min_height=400, hover_cols=['x', 'y', 'min_' + category], label='min', color='blue').opts(show_legend=True, alpha=1, muted_alpha=0)
     
-    mean_line = df.hvplot.line(x=x, y='avg', title=title, responsive=True, min_height=400, hover_cols=['x', 'y'], label='avg', color='black').opts(show_legend=True, alpha=1, muted_alpha=0)
+    max_line = df.hvplot.line(x=x, y='max', title=title, responsive=True, min_height=400, hover_cols=['x', 'y', 'max_' + category], label='max', color='red').opts(alpha=1, muted_alpha=0)
+        
+    min_line = df.hvplot.line(x=x, y='min', title=title, responsive=True, min_height=400, hover_cols=['x', 'y', 'min_' + category], label='min', color='blue').opts(alpha=1, muted_alpha=0)
+    
+    mean_line = df.hvplot.line(x=x, y='avg', title=title, responsive=True, min_height=400, hover_cols=['x', 'y'], label='avg', color='black').opts(alpha=1, muted_alpha=0)
     
     options = list(dic_opts.items())
     
     dynamic_map = max_line * mean_line * min_line
     dynamic_map.opts(**dict(options))
+    dynamic_map
+    
 
     return dynamic_map
 
@@ -100,104 +117,16 @@ def hvplot_df_scatter(df, x, y, title, color, size, marker, dic_opts, cmap="reds
     """
     if rasterize == False:
         plot = df.hvplot.scatter(x=x, y=y, title=title, color=color, label='selected ' + groupby,
-                                 size=size, marker=marker, cmap=cmap, groupby=groupby, datashade=datashade, rasterize=rasterize, dynamic=dynamic, responsive=True, min_height=400)
+                                 size=size, marker=marker, cmap=cmap, groupby=groupby, datashade=datashade, rasterize=rasterize, dynamic=dynamic, responsive=True, min_height=400, muted_alpha=0)
 
     else:
-        plot = df.hvplot.scatter(x=x, y=y, title=title, color=color, label='rasterized values',
+        plot = df.hvplot.scatter(x=x, y=y, title=title, color=color,
                                  marker=marker, cmap=cmap, groupby=groupby, datashade=datashade, rasterize=rasterize, dynamic=dynamic, responsive=True, min_height=400)
 
     options = list(dic_opts.items())
     plot.opts(**dict(options))
 
     return plot
-
-def get_data_by_date(collection, property_name, date_time, value_field, id_var, var_name, value_name, remove_temperature_anom=False, search_previous=True):
-    """_summary_
-    Get data from mongodb collection filtering by date. If the search_previous flag is set to True, the function will search
-    for data in the previous days (until 120 days) if no data is found for the specified date.
-    """
-    data_values = []
-    datetime_values = []
-
-    date = date_time
-
-    if search_previous:
-
-        for i in range(0, 120):
-            query = {'name': property_name, 'date': {'$gte': dt.datetime(
-                date.year, date.month, date.day), '$lt': dt.datetime(date.year, date.month, date.day) + dt.timedelta(days=1)}}
-            print('\nRetrieving ' + property_name +
-                  ' data from date: ' + str(date))
-
-            for document in collection.find(query, {"date": 1, value_field: 1, "_id": 0}):
-                data_values.append(document[value_field])
-                datetime_values.append(document['date'])
-
-            if len(data_values) > 0:
-                break
-
-            else:
-                date = date_time - dt.timedelta(days=i+1)
-                print('No data found. Retrieving data from previous day...')
-    else:
-        query = {'name': property_name, 'date': {'$gte': dt.datetime(
-            date.year, date.month, date.day), '$lt': dt.datetime(date.year, date.month, date.day) + dt.timedelta(days=1)}}
-
-        print('Retrieving ' + property_name +
-              ' data from date: ' + str(date))
-
-        for document in collection.find(query, {"date": 1, value_field: 1, "_id": 0}):
-            data_values.append(document[value_field])
-            datetime_values.append(document['date'])
-
-    if (len(data_values) > 0):
-        # print('Building pandas dataframe...')
-
-        # Pandas dataframe
-        pandas_df = pd.DataFrame(data_values, columns=[
-            var_name+f"_{i+1}" for i in range(len(data_values[0]))])
-
-        # Add dates to dataframe and sort by date
-        pandas_df['date'] = pd.to_datetime(datetime_values)
-
-        # Melt dataframe to converts from width df to long,
-        # where channel would be a variable and the temperature the value...
-        #print('Transforms pandas dataframe from wide to long...')
-        pandas_df = pandas_df.melt(
-            id_vars=[id_var], var_name=var_name, value_name=value_name)
-
-        if remove_temperature_anom:
-            # Removes 0 values
-            values_field_name_attr = getattr(pandas_df, value_name)
-            pandas_df = pandas_df.loc[values_field_name_attr != 0]
-
-            # Remove all values below -25
-            pandas_df = pandas_df.loc[values_field_name_attr > -25]
-
-            # Remove all values above 250
-            pandas_df = pandas_df.loc[values_field_name_attr < 250]
-
-        # Removes 'channel_' from channel rows values
-        pandas_df[var_name] = pandas_df[var_name].str.replace(
-            var_name+'_', '')
-
-        # convert var name type to int
-        pandas_df[var_name] = pandas_df[var_name].astype('uint16', copy=False)
-        pandas_df.set_index('date', inplace=True)
-
-        # sort by date
-        pandas_df.sort_index(inplace=True)
-
-        # Print pandas dataframe memory usage to console
-        #pandas_df.info(memory_usage='deep')
-
-        del data_values, datetime_values
-        gc.collect()
-
-    else:  # Return a empty pandas dataframe in case no data is found
-        pandas_df = pd.DataFrame()
-
-    return pandas_df
 
 
 def empty_plot():
@@ -278,6 +207,7 @@ def build_min_max_avg(df, x, y, category):
 
     return df_agg
 
+
 def plot_data(data, x, y, title, xlabel, ylabel, groupby, cmap_custom, clim):
 
     # Build a pandas dataframe from the original dataframe and select the min and max values for each date
@@ -288,7 +218,7 @@ def plot_data(data, x, y, title, xlabel, ylabel, groupby, cmap_custom, clim):
 
     max_line_plot = hvplot_df_max_min_avg_line(df_with_min_max_avg, x=x, y=y, title=title, dic_opts={
         'padding': 0.1, 'tools': ['hover'], 'xlabel': xlabel, 'ylabel': ylabel, 'axiswise': True, 'show_legend': True}, category=groupby)
-
+    
     # Plot lines grouped by channel from data (channel is selected by widget and just one channel is shown at a time)
     lines_plot = hvplot_df_line(data, x=x, y=y, title=title, dic_opts={
         'padding': 0.1, 'tools': ['hover'], 'xlabel': xlabel, 'ylabel': ylabel, 'axiswise': True}, groupby=groupby, color='purple')
@@ -303,21 +233,23 @@ def plot_data(data, x, y, title, xlabel, ylabel, groupby, cmap_custom, clim):
 
     # Juntamos gráfico de lineas y scatters
     composite_plot = lines_plot * single_channel_scatter_plot  * max_line_plot * all_channels_scatter_plot
-        
+    
     # Not sure if this have any effects since we are using hvplot_df_max_min_avg_line with this dataframe
     del df_with_min_max_avg, data
     gc.collect()
 
-    return composite_plot.opts(legend_position='top', toolbar='above', responsive=True, min_height=500, hooks=[disable_logo], show_legend=True, legend_opts={"click_policy": "hide"}, show_grid=True)
+    return composite_plot.opts(legend_position='top', toolbar='above', responsive=True, min_height=500, hooks=[disable_logo], show_grid=True)
 
-def create_plot_panel(initial_data, title, date_picker, property_name, value_field, id_var, var_name, value_name, xlabel, ylabel, remove_temperature_anom, search_previous, cmap, climit, template):
+def create_plot_panel(initial_data, title, date_picker, property_name, value_field, id_var, var_name, value_name, xlabel, ylabel, search_previous, cmap, climit, template):
 
-    template.main[0][0][2].object = f'''<h1 style="text-align:center">Making plots...</h1> <h2 style="text-align:center">({title})</h2> '''
+    # template.main[0][0][2].object = f'''<h1 style="text-align:center">Making plots...</h1> <h2 style="text-align:center">({title})</h2> '''
+    dashboard_utils.update_loading_message(template, f'''<h1 style="text-align:center">Making plots...</h1> <h2 style="text-align:center">({title})</h2> ''')
     print("   - Creating plot panel for: " + title)
     
     @pn.depends(date_picker.param.value, watch=True)
     def thread_update_plot_task(date_picker):
 
+        # create thread and pass look as arg
         t = threading.Thread(target=update_plot, args=(date_picker, ))
         t.daemon = False
         t.start()
@@ -340,41 +272,41 @@ def create_plot_panel(initial_data, title, date_picker, property_name, value_fie
             case 'scb_pixel_hv_monitored':
                 result_panel = template.main[0][0][1, 2]
 
-        print('result_panel in getter', result_panel)
         return result_panel
 
+    @pn.io.with_lock
     def update_plot(date_picker):
+        if get_panel_by_property(property_name) == None: # If the panel is not found, we exit. Avoding race conditions with another threads when grid doesnt exists
+            exit()
+            
         with pn.param.set_values(get_panel_by_property(property_name), loading=True):
 
             print('\n[Updating] ' + property_name + ' plot')
 
             # We need to create a new mongodb client connection since this is a fork process and mongodb client is not thread safe
-            db = connect_to_database('localhost', 27017, 'CACO')
-
+            db = database.connect_to_database('localhost', 27017, 'CACO')
+            
+            #db = None # This line exists in order to debug database connection fail with alert message in the web
+            
             if (db == None):
-                template.main[0][0] = pn.Column()
-                template.sidebar[0][0] = pn.Column()
-
-                db_error_image = pn.pane.PNG(
-                    './images/db_error.png', width=100, align='center')
+                # SOME NOTES ABOUT THIS FUNCTION SCOPE:
+                # ¿? how to do this properly ¿?
+                # Since each panel update is getting its own thread, the alert is showing few times
+                # I will be invoking here a function to override the whole grid with the database message error for the moment
+                #  - I think that the best way to do this is to create a new thread for the whole dashboard update
+                #  - This thread will be in charge of updating all the panels and the database connection
                 
-                db_error_text = pn.pane.Markdown('''<h1 style="text-align:center">Connection to database failed.
-                    Check if the database is running.</h1>''')
-                
-                main_error_col = pn.Column(pn.layout.VSpacer(
-                ), db_error_image,  db_error_text, pn.layout.VSpacer(), sizing_mode='stretch_both')
-
-                template.main[0][0] = main_error_col
-
+                # dashboard_utils.display_database_error(template=template, show_alert=True)
+                dashboard_utils.display_database_error(template=template)
                 exit()
 
             clusco_min_collection = db['CLUSCO_min']
 
-            data = get_data_by_date(collection=clusco_min_collection,
+            data = database.get_data_by_date(collection=clusco_min_collection,
                                     property_name=property_name,
                                     date_time=date_picker, value_field=value_field,
                                     id_var=id_var, var_name=var_name,
-                                    value_name=value_name, remove_temperature_anom=remove_temperature_anom, search_previous=search_previous)
+                                    value_name=value_name, search_previous=search_previous)
 
             # close mongodb connection
             db.client.close()
@@ -439,7 +371,6 @@ def create_plot_panel(initial_data, title, date_picker, property_name, value_fie
 
     return plot_panel
 
-
 def create_dashboard(template):
 
     print('Creating dashboard')
@@ -448,26 +379,13 @@ def create_dashboard(template):
 
     pn.param.ParamMethod.loading_indicator = True
 
-    template.main[0][0][2].object = '''<h1 style="text-align:center">Getting data...</h1>'''
+    dashboard_utils.update_loading_message(template, '''<h1 style="text-align:center">Getting data...</h1>''')
 
     # Setup BD Connection
-    db = connect_to_database('localhost', 27017, 'CACO')
+    db = database.connect_to_database('localhost', 27017, 'CACO')
 
     if (db == None):
-        template.main[0][0] = pn.Column()
-        template.sidebar[0][0] = pn.Column()
-
-        db_error_image = pn.pane.PNG(
-            './images/db_error.png', width=100, align='center')
-        
-        db_error_text = pn.pane.Markdown('''<h1 style="text-align:center">Connection to database failed.
-            Check if the database is running.</h1>''')
-        
-        main_error_col = pn.Column(pn.layout.VSpacer(
-        ), db_error_image,  db_error_text, pn.layout.VSpacer(), sizing_mode='stretch_both')
-
-        template.main[0][0] = main_error_col
-
+        dashboard_utils.display_database_error(template=template)
         exit()
 
     clusco_min_collection = db['CLUSCO_min']
@@ -476,87 +394,61 @@ def create_dashboard(template):
     #date_filter = dt.date(2023, 1, 3)  # This is to make a test to run the app with a initial day without data
 
     # Data retrieved from database
-    pacta_temperature_data = get_data_by_date(collection=clusco_min_collection, property_name='scb_pixel_temperature',
-                                              date_time=date_filter, value_field='avg', id_var='date', var_name='channel', value_name='temperature', remove_temperature_anom=False)
+    pacta_temperature_data = database.get_data_by_date(collection=clusco_min_collection, property_name='scb_pixel_temperature',
+                                              date_time=date_filter, value_field='avg', id_var='date', var_name='channel', value_name='temperature')
 
-    # There is a bug very hard to reproduces at this point, it happens sometimes when trying to start the server, but retrying it works...
-    # print(pacta_temperature_data)
+    
     # Start date based on the date looked up by pacta_temperature
     if (len(pacta_temperature_data.index) > 0):
-        #start_date = pacta_temperature_data['date'].dt.date[0]
+         # get the first date value from pacta_temperature_data
+         # the index dataframe is the date, so we can get the first date value from pacta_temperature_data
         start_date = pacta_temperature_data.index[0].date()
     else:
         print('No data recovered...')
         sys.exit()
-        # while(len(pacta_temperature_data.index) == 0):
-        #     pacta_temperature_data = get_data_by_date(collection=clusco_min_collection, property_name='scb_pixel_temperature',
-        #                                               date_time=date_filter, value_field='avg', id_var='date', var_name='channel', value_name='temperature', remove_temperature_anom=True)
+   
 
-    # get the first date value from pacta_temperature_data
-    # the index dataframe is the date, so we can get the first date value from pacta_temperature_data
-    start_date = pacta_temperature_data.index[0].date()
+    scb_temperature_data = database.get_data_by_date(collection=clusco_min_collection, property_name='scb_temperature',
+                                            date_time=start_date, value_field='avg', id_var='date', var_name='module', value_name='temperature')
 
-    scb_temperature_data = get_data_by_date(collection=clusco_min_collection, property_name='scb_temperature',
-                                            date_time=start_date, value_field='avg', id_var='date', var_name='module', value_name='temperature', remove_temperature_anom=False)
+    scb_humidity_data = database.get_data_by_date(collection=clusco_min_collection, property_name='scb_humidity',
+                                         date_time=start_date, value_field='avg', id_var='date', var_name='module', value_name='humidity')
 
-    scb_humidity_data = get_data_by_date(collection=clusco_min_collection, property_name='scb_humidity',
-                                         date_time=start_date, value_field='avg', id_var='date', var_name='module', value_name='humidity', remove_temperature_anom=False)
+    scb_anode_current_data = database.get_data_by_date(collection=clusco_min_collection, property_name='scb_pixel_an_current',
+                                              date_time=start_date, value_field='avg', id_var='date', var_name='channel', value_name='anode')
 
-    scb_anode_current_data = get_data_by_date(collection=clusco_min_collection, property_name='scb_pixel_an_current',
-                                              date_time=start_date, value_field='avg', id_var='date', var_name='channel', value_name='anode', remove_temperature_anom=False)
-
-    hv_data = get_data_by_date(collection=clusco_min_collection, property_name='scb_pixel_hv_monitored',
-                               date_time=start_date, value_field='avg', id_var='date', var_name='channel', value_name='hv', remove_temperature_anom=False)
+    hv_data = database.get_data_by_date(collection=clusco_min_collection, property_name='scb_pixel_hv_monitored',
+                               date_time=start_date, value_field='avg', id_var='date', var_name='channel', value_name='hv')
 
     # close mongodb connection
     db.client.close()
 
-    template.main[0][0][2].object = '''<h1 style="text-align:center">Making plots...</h1>'''
+    # template.main[0][0][2].object = '''<h1 style="text-align:center">Making plots...</h1>'''
+    dashboard_utils.update_loading_message(template, '''<h1 style="text-align:center">Making plots...</h1>''')
 
     date_picker = pn.widgets.DatePicker(
         name='Date Selection', value=start_date, end=dt.date.today())
 
     print("\nMaking plots...")
 
-    # Custom color maps for scatter plots
-    cmap_temps = LinearSegmentedColormap.from_list('cmap_temps', [(
-        0, (0, 0, 1)), (18/30, (0, 1, 0)), (25/30, (1, 0.65, 0)), (26/30, (1, 0, 0)), (1, (1, 0, 0))])
-
-    cmap_humidty = LinearSegmentedColormap.from_list('cmap_humidity', [
-        (0, (1, 0.64, 0)),
-        (10/80, (1, 0.92, 0)),
-        (40/80, (0, 1, 0)),
-        (70/80, (1, 0.92, 0)),
-        (74/80, (1, 0.64, 0)),
-        (80/80, (1, 0, 0))])
-
-    cmap_anode = LinearSegmentedColormap.from_list('cmap_anode', [
-        (0, (0, 0, 1)),
-        (5/100, (0, 1, 0)),
-        (60/100, (1, 0.92, 0)),
-        (80/100, (1, 0.64, 0)),
-        (100/100, (1, 0, 0))])
-
-    cmap_hv = LinearSegmentedColormap.from_list('cmap_hv', [
-        (0, (0, 0, 1)),
-        (10/1400, (0, 0, 1)),
-        (200/1400, (0, 1, 0)),
-        (950/1400, (1, 0.92, 0)),
-        (1200/1400, (1, 0.64, 0)),
-        (1400/1400, (1, 0, 0))])
 
     pacta_temp_plot_panel = create_plot_panel(pacta_temperature_data, 'PACTA Temperature', date_picker, 'scb_pixel_temperature',
-                                              'avg', 'date', 'channel', 'temperature', 'Time (UTC)', 'Temperature (ºC)', True, False, cmap_temps, (0, 30), template)
+                                              'avg', 'date', 'channel', 'temperature', 'Time (UTC)', 'Temperature (ºC)', False, cmap_temps, (0, 30), template)
+    
     scb_temp_plot_panel = create_plot_panel(scb_temperature_data, 'SCB Temperature', date_picker, 'scb_temperature',
-                                            'avg', 'date', 'module', 'temperature', 'Time (UTC)', 'Temperature (ºC)', False, False, cmap_temps, (0, 30), template)
+                                            'avg', 'date', 'module', 'temperature', 'Time (UTC)', 'Temperature (ºC)', False, cmap_temps, (0, 30), template)
+    
     scb_humidity_plot_panel = create_plot_panel(scb_humidity_data, 'SCB Humidity', date_picker, 'scb_humidity',
-                                                'avg', 'date', 'module', 'humidity', 'Time (UTC)', 'Humidity (%)', False, False, cmap_humidty, (0, 80), template)
+                                                'avg', 'date', 'module', 'humidity', 'Time (UTC)', 'Humidity (%)', False, cmap_humidty, (0, 80), template)
+    
     scb_anode_current_plot_panel = create_plot_panel(scb_anode_current_data, 'Anode Current', date_picker, 'scb_pixel_an_current',
-                                                     'avg', 'date', 'channel', 'anode', 'Time (UTC)', 'Anode Current (µA)', False, False, cmap_anode, (0, 100), template)
+                                                     'avg', 'date', 'channel', 'anode', 'Time (UTC)', 'Anode Current (µA)', False, cmap_anode, (0, 100), template)
+    
     hv_plot_panel = create_plot_panel(hv_data, 'High Voltage', date_picker, 'scb_pixel_hv_monitored',
-                                      'avg', 'date', 'channel', 'hv', 'Date', 'HV (V)', False, False, cmap_hv, (10, 1400), template)
+                                      'avg', 'date', 'channel', 'hv', 'Date', 'HV (V)', False, cmap_hv, (10, 1400), template)
 
-    template.main[0][0][2].object = '''<h1 style="text-align:center">Deploying dashboard...</h1>'''
+    # template.main[0][0][2].object = '''<h1 style="text-align:center">Deploying dashboard...</h1>'''
+    dashboard_utils.update_loading_message(template, '''<h1 style="text-align:center">Deploying dashboard...</h1>''')
 
     # Creates a grid from GridSpec and adds plots to it
     grid = pn.GridSpec(sizing_mode='stretch_both',
@@ -590,7 +482,8 @@ def create_dashboard(template):
 
     del pacta_temperature_data, scb_temperature_data, scb_humidity_data, scb_anode_current_data, hv_data, clusco_min_collection, db, pacta_temp_plot_panel, scb_temp_plot_panel, scb_humidity_plot_panel, scb_anode_current_plot_panel, hv_plot_panel
     gc.collect()
-    
+
+
 def destroyed(session_context):
     print("Session destroyed", session_context)
     gc.collect()
@@ -598,9 +491,6 @@ def destroyed(session_context):
     if  not restart_server_thread_task.is_alive():
         print("Starting restart server thread...")
         restart_server_thread_task.start()
-
-
-
     
 def get_user_page():
 
