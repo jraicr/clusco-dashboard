@@ -229,7 +229,7 @@ def plot_data(data, x, y, title, xlabel, ylabel, groupby, cmap_custom, clim):
 
     # Plot scatter from data for all channels (rasterized)
     all_channels_scatter_plot = hvplot_df_scatter(data, x=x, y=y, title=title, color=y, cmap=cmap_custom,  size=20, marker='o', dic_opts={
-                                                  'padding': 0.1, 'tools': [''], 'xlabel': xlabel, 'alpha': 0.15, 'ylabel': ylabel, 'clim': clim}, rasterize=True, dynamic=False)
+                                                  'padding': 0.1, 'tools': [''], 'xlabel': xlabel, 'alpha': 0.15, 'ylabel': ylabel, 'clim': clim,}, rasterize=True, dynamic=False)
 
     # Juntamos gráfico de lineas y scatters
     composite_plot = lines_plot * single_channel_scatter_plot  * max_line_plot * all_channels_scatter_plot

@@ -32,9 +32,9 @@ def get_data_by_date(collection, property_name, date_time, value_field, id_var, 
     if search_previous:
 
         for i in range(0, 120):
-            # Query date range from the selected day in date_time parameter from 12:00 pm to the next day at 12:00 pm (inclusive)
+            # Query date range from the selected day in date_time parameter from 12:00 pm until the next day at 12:00 pm (inclusive)
             query = {'name': property_name, 'date': {'$gte': dt.datetime(
-                date.year, date.month, date.day, 12), '$lt': dt.datetime(date.year, date.month, date.day) + dt.timedelta(days=1, hours=12)}}
+                date.year, date.month, date.day, 12), '$lte': dt.datetime(date.year, date.month, date.day) + dt.timedelta(days=1, hours=12)}}
             
 
 
@@ -55,7 +55,7 @@ def get_data_by_date(collection, property_name, date_time, value_field, id_var, 
                 print('No data found. Retrieving data from previous day...')
     else:
         query = {'name': property_name, 'date': {'$gte': dt.datetime(
-            date.year, date.month, date.day), '$lt': dt.datetime(date.year, date.month, date.day) + dt.timedelta(days=1)}}
+                date.year, date.month, date.day, 12), '$lte': dt.datetime(date.year, date.month, date.day) + dt.timedelta(days=1, hours=12)}}
 
         print('Retrieving ' + property_name +
               ' data from date: ' + str(date))
