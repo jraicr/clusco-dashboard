@@ -2,7 +2,7 @@ from pymongo import MongoClient
 import pandas as pd
 import datetime as dt
 
-def connect_to_database(host, port, database):
+def connect(host, port, database):
     """
     Connect to a MongoDB database and return a client object.
     """
