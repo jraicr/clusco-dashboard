@@ -119,7 +119,7 @@ def build_min_max_avg(df, x, y, category):
         return df_agg
 
     # Split the data into chunks and process each chunk separately .
-    # This is useful to avoid RAM memory issues, since the dataframe could be too big while doing processing data.
+    # This is useful to avoid RAM memory issues, since the dataframe could be too big while processing data.
     chunksize = 300000
     result = []
     remaining_rows = pd.DataFrame()
@@ -141,8 +141,6 @@ def build_min_max_avg(df, x, y, category):
     # Concatenate the results
     df_agg = pd.concat(result)
 
-    del result, 
-    gc.collect()
     return df_agg
 
 
@@ -179,9 +177,5 @@ def plot_data(data, x, y, title, xlabel, ylabel, groupby, cmap_custom, clim):
 
     # Create a composite plot with all the plots merged
     composite_plot = lines_plot * single_channel_scatter_plot  * max_line_plot * all_channels_scatter_plot
-    
-    # Not sure if this have any effects since we are using hvplot_df_max_min_avg_line with this dataframe
-    del df_with_min_max_avg, data
-    gc.collect()
 
     return composite_plot.opts(legend_position='top', toolbar='above', responsive=True, min_height=500, hooks=[disable_logo], show_grid=True)

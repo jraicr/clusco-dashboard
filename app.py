@@ -11,11 +11,13 @@ import gc
 import threading
 import sys
 import os
+
+# Application modules
 import database
 import dashboard_utils
 import plot_helper
 
-    
+
 gc.enable()
 #gc.set_debug(gc.DEBUG_STATS | gc.DEBUG_LEAK)
 
@@ -67,9 +69,8 @@ def restart_server_if_empty_task(interval_sec=60):
 restart_server_thread_task = threading.Thread(target=restart_server_if_empty_task)
 restart_server_thread_task.daemon = True
 
-def create_plot_panel(initial_data, title, date_picker, id_var, var_name, value_name, xlabel, ylabel, cmap, climit, template, show_loading_msg=True):
+def create_plot_panel(df, title, date_picker, id_var, var_name, value_name, xlabel, ylabel, cmap, climit, template, show_loading_msg=True):
 
-    # template.main[0][0][2].object = f'''<h1 style="text-align:center">Making plots...</h1> <h2 style="text-align:center">({title})</h2> '''
     if show_loading_msg:
         dashboard_utils.update_loading_message(template, f'''<h1 style="text-align:center">Making plots...</h1> <h2 style="text-align:center">({title})</h2> ''')
 
@@ -80,13 +81,13 @@ def create_plot_panel(initial_data, title, date_picker, id_var, var_name, value_
     else:
         date_filter = date_picker
 
-    if (initial_data.empty):
+    if (df.empty):
         print("   - No data to plot for: " + title)
         plot = plot_helper.create_empty_plot()
         plot_panel = pn.panel(plot, sizing_mode='stretch_width', linked_axes=False)
     
     else:
-        plot = plot_helper.plot_data(initial_data, id_var, value_name,
+        plot = plot_helper.plot_data(df, id_var, value_name,
                         title + ' (' + str(date_filter) + ')', xlabel, ylabel, var_name, cmap, climit)
 
         c_widget = pn.widgets.DiscreteSlider
@@ -96,15 +97,8 @@ def create_plot_panel(initial_data, title, date_picker, id_var, var_name, value_
         plot_panel = pn.panel(plot, widget_location='bottom', widgets={
                             var_name: c_widget}, sizing_mode='stretch_width', linked_axes=False)
 
-        del initial_data
-        gc.collect()
 
     return plot_panel
-
-
-def update_grid(template, plot_dict):
-    # Function that update the grid in template.main[0][0] with the plots in plot_dict
-    print('Updating grid')
 
 
 def update_dashboard(template, date_picker):
@@ -122,10 +116,6 @@ def update_dashboard(template, date_picker):
         exit()
 
     clusco_min_collection = db['CLUSCO_min']
-
-    #date_filter = dt.date.today()
-    #date_filter = dt.date(2023, 1, 3)  # This is to make a test to run the app with a initial day without data
-
 
      # Data retrieved from database
     pacta_temperature_data = database.get_data_by_date(collection=clusco_min_collection, property_name='scb_pixel_temperature',
@@ -147,9 +137,6 @@ def update_dashboard(template, date_picker):
     # close mongodb connection
     db.client.close()
 
-    # template.main[0][0][2].object = '''<h1 style="text-align:center">Making plots...</h1>'''
-
-
     print("\nMaking plots...")
 
     pacta_temp_plot_panel = create_plot_panel(pacta_temperature_data, 'PACTA Temperature', date_picker, 'date', 'channel', 'temperature', 'Time (UTC)', 'Temperature (ºC)', cmap_temps, (0, 30), template, False)
@@ -162,23 +149,6 @@ def update_dashboard(template, date_picker):
         
     hv_plot_panel = create_plot_panel(hv_data, 'High Voltage', date_picker, 'date', 'channel', 'hv', 'Date', 'HV (V)', cmap_hv, (10, 1400), template, False)
 
-
-    # Creates a grid from GridSpec and adds plots to it
-    # grid = pn.GridSpec(sizing_mode='stretch_both',
-    #                 ncols=3, nrows=2, mode='override')
-
-    # grid[0, 0] = pacta_temp_plot_panel
-    # grid[0, 1] = scb_temp_plot_panel
-    # grid[0, 2] = scb_humidity_plot_panel
-    # grid[1, 0:2] = scb_anode_current_plot_panel
-    # grid[1, 2:3] = hv_plot_panel
-
-
-    # Append grid to template main
-    #print("Updating", template.main.objects)
-    # template.main[0].sizing_mode = 'stretch_both'
-    # template.main[0][0] = grid
-
     template.main[0][0][0, 0] = pacta_temp_plot_panel
     template.main[0][0][0, 1] = scb_temp_plot_panel
     template.main[0][0][0, 2] = scb_humidity_plot_panel
@@ -187,9 +157,6 @@ def update_dashboard(template, date_picker):
 
     toc = time.perf_counter()
     print(f"\Dashboard updated in {toc - tic:0.4f} seconds")
-
-    del pacta_temperature_data, scb_temperature_data, scb_humidity_data, scb_anode_current_data, hv_data, clusco_min_collection, db, pacta_temp_plot_panel, scb_temp_plot_panel, scb_humidity_plot_panel, scb_anode_current_plot_panel, hv_plot_panel
-    gc.collect()
 
 
 def create_dashboard(template, date_filter=dt.date.today()):
@@ -211,14 +178,11 @@ def create_dashboard(template, date_filter=dt.date.today()):
 
     clusco_min_collection = db['CLUSCO_min']
 
-    #date_filter = dt.date.today()
-    #date_filter = dt.date(2023, 1, 3)  # This is to make a test to run the app with a initial day without data
-
     # Data retrieved from database
     pacta_temperature_data = database.get_data_by_date(collection=clusco_min_collection, property_name='scb_pixel_temperature',
                                             date_time=date_filter, value_field='avg', id_var='date', var_name='channel', value_name='temperature')
 
-        
+    
     # Start date based on the date looked up by pacta_temperature
     if (len(pacta_temperature_data.index) > 0):
         # get the first date value from pacta_temperature_data
@@ -243,7 +207,6 @@ def create_dashboard(template, date_filter=dt.date.today()):
     # close mongodb connection
     db.client.close()
 
-    # template.main[0][0][2].object = '''<h1 style="text-align:center">Making plots...</h1>'''
     dashboard_utils.update_loading_message(template, '''<h1 style="text-align:center">Making plots...</h1>''')
 
     date_picker = pn.widgets.DatePicker(
@@ -252,17 +215,12 @@ def create_dashboard(template, date_filter=dt.date.today()):
     print("\nMaking plots...")
 
 
-    pacta_temp_plot_panel = create_plot_panel(pacta_temperature_data, 'PACTA Temperature', date_picker, 'date', 'channel', 'temperature', 'Time (UTC)', 'Temperature (ºC)', cmap_temps, (0, 30), template)
-        
+    pacta_temp_plot_panel =  create_plot_panel(pacta_temperature_data, 'PACTA Temperature', date_picker, 'date', 'channel', 'temperature', 'Time (UTC)', 'Temperature (ºC)', cmap_temps, (0, 30), template) 
     scb_temp_plot_panel = create_plot_panel(scb_temperature_data, 'SCB Temperature', date_picker, 'date', 'module', 'temperature', 'Time (UTC)', 'Temperature (ºC)', cmap_temps, (0, 30), template)
-        
     scb_humidity_plot_panel = create_plot_panel(scb_humidity_data, 'SCB Humidity', date_picker, 'date', 'module', 'humidity', 'Time (UTC)', 'Humidity (%)', cmap_humidty, (0, 80), template)
-        
     scb_anode_current_plot_panel = create_plot_panel(scb_anode_current_data, 'Anode Current', date_picker, 'date', 'channel', 'anode', 'Time (UTC)', 'Anode Current (µA)', cmap_anode, (0, 100), template)
-        
     hv_plot_panel = create_plot_panel(hv_data, 'High Voltage', date_picker, 'date', 'channel', 'hv', 'Date', 'HV (V)', cmap_hv, (10, 1400), template)
 
-    # template.main[0][0][2].object = '''<h1 style="text-align:center">Deploying dashboard...</h1>'''
     dashboard_utils.update_loading_message(template, '''<h1 style="text-align:center">Deploying dashboard...</h1>''')
 
     # Creates a grid from GridSpec and adds plots to it
@@ -275,9 +233,6 @@ def create_dashboard(template, date_filter=dt.date.today()):
     grid[1, 0:2] = scb_anode_current_plot_panel
     grid[1, 2:3] = hv_plot_panel
 
-    #print ("Grid Object Overview", grid.objects)
-
-    template.sidebar[0][0][2].object = '''<h1 style="text-align:center">Generating widgets...</h1>'''
     png_pane = pn.pane.PNG('./images/cta-logo.png', width=200, align='center')
     sidebar_col = pn.Column(pn.layout.HSpacer(), png_pane,
                             pn.layout.HSpacer(), date_picker)
@@ -292,10 +247,6 @@ def create_dashboard(template, date_filter=dt.date.today()):
 
     toc = time.perf_counter()
     print(f"\nServer started in {toc - tic:0.4f} seconds")
-
-    del pacta_temperature_data, scb_temperature_data, scb_humidity_data, scb_anode_current_data, hv_data, clusco_min_collection, db, pacta_temp_plot_panel, scb_temp_plot_panel, scb_humidity_plot_panel, scb_anode_current_plot_panel, hv_plot_panel
-    gc.collect()
-
 
     @pn.depends(date_picker.param.value, watch=True)
     def thread_update_dashboard_task(date_picker):

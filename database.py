@@ -95,9 +95,6 @@ def get_data_by_date(collection, property_name, date_time, value_field, id_var, 
         # Print pandas dataframe memory usage to console
         #pandas_df.info(memory_usage='deep')
 
-        # del data_values, datetime_values
-        # gc.collect()
-
     else:  # Return a empty pandas dataframe in case no data is found
         pandas_df = pd.DataFrame()
 

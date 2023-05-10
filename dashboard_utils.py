@@ -6,7 +6,7 @@ def update_loading_message(template, message):
     
 # function to display database error
 def display_database_error(template: pn.template.MaterialTemplate, show_alert:bool = False):
-    
+
     if not show_alert:
         template.main[0][0] = pn.Column()
         template.sidebar[0][0] = pn.Column()
