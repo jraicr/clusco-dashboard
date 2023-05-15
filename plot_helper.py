@@ -178,4 +178,4 @@ def plot_data(data, x, y, title, xlabel, ylabel, groupby, cmap_custom, clim):
     # Create a composite plot with all the plots merged
     composite_plot = lines_plot * single_channel_scatter_plot  * max_line_plot * all_channels_scatter_plot
 
-    return composite_plot.opts(legend_position='top', toolbar='above', responsive=True, min_height=500, hooks=[disable_logo], show_grid=True)
+    return composite_plot.opts(legend_position='top', responsive=True, min_height=500, hooks=[disable_logo], show_grid=True)

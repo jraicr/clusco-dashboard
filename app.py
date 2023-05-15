@@ -112,7 +112,8 @@ def update_dashboard(template, date_picker):
     db = database.connect('localhost', 27017, 'CACO')
 
     if (db == None):
-        dashboard_utils.display_database_error(template=template, show_alert=True)
+        # dashboard_utils.display_database_error(template=template, show_alert=True)
+        dashboard_utils.display_database_error(template=template)
         exit()
 
     clusco_min_collection = db['CLUSCO_min']
@@ -140,19 +141,18 @@ def update_dashboard(template, date_picker):
     print("\nMaking plots...")
 
     pacta_temp_plot_panel = create_plot_panel(pacta_temperature_data, 'PACTA Temperature', date_picker, 'date', 'channel', 'temperature', 'Time (UTC)', 'Temperature (ºC)', cmap_temps, (0, 30), template, False)
-        
-    scb_temp_plot_panel = create_plot_panel(scb_temperature_data, 'SCB Temperature', date_picker, 'date', 'module', 'temperature', 'Time (UTC)', 'Temperature (ºC)', cmap_temps, (0, 30), template, False)
-        
-    scb_humidity_plot_panel = create_plot_panel(scb_humidity_data, 'SCB Humidity', date_picker, 'date', 'module', 'humidity', 'Time (UTC)', 'Humidity (%)', cmap_humidty, (0, 80), template, False)
-        
-    scb_anode_current_plot_panel = create_plot_panel(scb_anode_current_data, 'Anode Current', date_picker, 'date', 'channel', 'anode', 'Time (UTC)', 'Anode Current (µA)', cmap_anode, (0, 100), template, False)
-        
-    hv_plot_panel = create_plot_panel(hv_data, 'High Voltage', date_picker, 'date', 'channel', 'hv', 'Date', 'HV (V)', cmap_hv, (10, 1400), template, False)
-
     template.main[0][0][0, 0] = pacta_temp_plot_panel
+    
+    scb_temp_plot_panel = create_plot_panel(scb_temperature_data, 'SCB Temperature', date_picker, 'date', 'module', 'temperature', 'Time (UTC)', 'Temperature (ºC)', cmap_temps, (0, 30), template, False)
     template.main[0][0][0, 1] = scb_temp_plot_panel
+    
+    scb_humidity_plot_panel = create_plot_panel(scb_humidity_data, 'SCB Humidity', date_picker, 'date', 'module', 'humidity', 'Time (UTC)', 'Humidity (%)', cmap_humidty, (0, 80), template, False)
     template.main[0][0][0, 2] = scb_humidity_plot_panel
+
+    scb_anode_current_plot_panel = create_plot_panel(scb_anode_current_data, 'Anode Current', date_picker, 'date', 'channel', 'anode', 'Time (UTC)', 'Anode Current (µA)', cmap_anode, (0, 100), template, False)
     template.main[0][0][1, 0:2] = scb_anode_current_plot_panel
+
+    hv_plot_panel = create_plot_panel(hv_data, 'High Voltage', date_picker, 'date', 'channel', 'hv', 'Date', 'HV (V)', cmap_hv, (10, 1400), template, False)
     template.main[0][0][1, 2:3] = hv_plot_panel
 
     toc = time.perf_counter()
@@ -253,6 +253,7 @@ def create_dashboard(template, date_filter=dt.date.today()):
 
         # Iterates panels and activate loading indicator in each one
         for panel in template.main[0][0]:
+            print(panel)
             # set param loading indicator param in panel to True
             panel[0].loading = True
 
@@ -304,5 +305,23 @@ def get_user_page():
 
 
 if __name__ == '__main__':
-    pn.serve(get_user_page, port=5006, show=False, static_dirs={'images': './images'}, admin=True, title='Clusco Reports',
+    # The app can be executed with -p 5006 to indicates the port from the command line
+
+    default_port = 5006
+
+    args = sys.argv[1:]
+
+    if len(args) > 0:
+        port_cmd_arg = args[0]
+        port = args[1]
+
+        # Check if port is a number
+        if port_cmd_arg == '-p' and port.isdigit():
+            port = int(port)
+        else:  # Error in command line arguments
+            print("Error indicating arguments or port. Using default port 5006")
+            port = default_port
+    else:
+        port = default_port
+    pn.serve(get_user_page, port=port, show=False, static_dirs={'images': './images'}, admin=True, title='Clusco Reports',
              threaded=True, n_threads=4, check_unused_sessions_milliseconds=5000, unused_session_lifetime=5000, log_level='debug')
