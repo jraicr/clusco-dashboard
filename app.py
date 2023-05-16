@@ -169,7 +169,6 @@ def update_dashboard(template, date_picker):
     pacta_temperature_data = database.get_data_by_date(collection=clusco_min_collection, property_name='scb_pixel_temperature',
                                             date_time=date_picker, value_field='avg', id_var='date', var_name='channel', value_name='temperature', search_previous=False)
 
-
     scb_temperature_data = database.get_data_by_date(collection=clusco_min_collection, property_name='scb_temperature',
                                             date_time=date_picker, value_field='avg', id_var='date', var_name='module', value_name='temperature', search_previous=False)
 
@@ -186,6 +185,7 @@ def update_dashboard(template, date_picker):
                                             date_time=date_picker, value_field='avg', id_var='date', var_name='module', value_name='temperature', search_previous=False)
 
 
+    # L1 Rate plot data
     l1_rate_data = database.get_data_by_date(collection=clusco_min_collection, property_name='l1_rate',
                                             date_time=date_picker, value_field='avg', id_var='date', var_name='module', value_name='l1_rate', search_previous=False)
     
@@ -195,7 +195,8 @@ def update_dashboard(template, date_picker):
     l0_rate_control_data = database.get_scalar_data_by_date(collection=clusco_min_collection, property_name='clusco_l0_rate_control',
                                             date_time=date_picker, value_field='avg', id_var='date', var_name='module', value_name='l0_rate_control', remove_zero_values=True, search_previous=False)
 
-
+    l1_rate_max_data = database.get_scalar_data_by_date(collection=clusco_min_collection, property_name='clusco_l1_rate_max',
+                                            date_time=date_picker, value_field='avg', id_var='date', var_name='module', value_name='l1_rate_max')
     # close mongodb connection
     db.client.close()
 
@@ -221,7 +222,7 @@ def update_dashboard(template, date_picker):
     template.main[0][0][0][1, 2] = scb_backplane_temp_plot_panel
 
     # Panels for the second dashboard tab
-    l1_rate_plot_panel = create_l1_rate_plot_panel([l1_rate_data, l0_rate_control_data, l1_rate_control_data], 'L1 Rate', date_picker, 'date', 'module', 'l1_rate', 'Time (UTC)', 'L1 Rate (Hz)', cmap_temps, (0, 1000), template, False)
+    l1_rate_plot_panel = create_l1_rate_plot_panel([l1_rate_data, l0_rate_control_data, l1_rate_control_data, l1_rate_max_data], 'L1 Rate', date_picker, 'date', 'module', 'l1_rate', 'Time (UTC)', 'L1 Rate (Hz)', cmap_temps, (0, 1000), template, False)
 
     template.main[0][0][1][0, 0] = l1_rate_plot_panel
 
@@ -278,6 +279,7 @@ def create_dashboard(template, date_filter=dt.date.today()):
                                             date_time=start_date, value_field='avg', id_var='date', var_name='module', value_name='temperature')
 
 
+    # L1 Rate plot data
     l1_rate_data = database.get_data_by_date(collection=clusco_min_collection, property_name='l1_rate',
                                             date_time=start_date, value_field='avg', id_var='date', var_name='module', value_name='l1_rate')
     
@@ -292,7 +294,7 @@ def create_dashboard(template, date_filter=dt.date.today()):
     l1_rate_max_data = database.get_scalar_data_by_date(collection=clusco_min_collection, property_name='clusco_l1_rate_max',
                                             date_time=start_date, value_field='avg', id_var='date', var_name='module', value_name='l1_rate_max')
 
-    print(l1_rate_max_data)
+    #print(l1_rate_max_data)
     # close mongodb connection
     db.client.close()
 
