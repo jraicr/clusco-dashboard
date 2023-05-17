@@ -188,6 +188,7 @@ def plot_l1_rate_data(data_list, x, y, title, xlabel, ylabel, groupby, cmap_cust
     l0_r_control = data_list[1]
     l1_r_control = data_list[2]
     l1_rate_max_data = data_list[3]
+    l1_rate_target_data = data_list[4]
 
     # Build a pandas dataframe from the original dataframe and select the min and max values for each date
     df_with_min_max_avg = build_min_max_avg(data, x, y, groupby)
@@ -229,21 +230,32 @@ def plot_l1_rate_data(data_list, x, y, title, xlabel, ylabel, groupby, cmap_cust
 
     # Plot an horizontal blue dashed line with the max value
     #l1_rate_max_plot = hv.HLine(l1_rate_max, label='L1 Rate Max').opts(line_dash='dashed', line_width=1, line_color='red', muted_alpha=0)
-
-    # create a horizontal line using hv.curve. In the x axis the first point is the min datetime and in the y axis is the l1_rate_max value, for the second point the x axis is the max datetime and the y axis is the l1_rate_max value
-
+    
     data = data.reset_index()
     min_date = data['date'].min()
     max_date = data['date'].max()
 
-    # build a dataframe with the min and max dates and the l1_rate_max value
-    l1_rate_max_df = pd.DataFrame({'date': [min_date, max_date], 'l1_rate_max': [l1_rate_max, l1_rate_max]})
+
     
-    l1_rate_max_plot = hv.Curve([(min_date, l1_rate_max), (max_date, l1_rate_max)], label='L1 Rate Max').opts(line_color='pink', line_width=2, muted_alpha=0)
-    #l1_rate_max_plot = l1_rate_max_df.hvplot.line(x='date', y='l1_rate_max', label='L1 Rate Max').opts(line_dash='dashed', line_width=2, line_color='red', muted_alpha=0)
+    orange_color = '#FF7F0E'
+    l1_rate_max_plot = hv.Curve([(min_date, l1_rate_max), (max_date, l1_rate_max)], label='L1 Rate Max').opts(line_color=orange_color, line_width=2, muted_alpha=0)
     #l1_rate_max_plot = hv.HLine(l1_rate_max, label='L1 Rate Max').opts(line_dash='dashed', line_width=1, line_color='red', muted_alpha=0)
     
+    # build a dataframe with the min and max dates and the l1_rate_max value and use hvplot to plot it
+    #l1_rate_max_df = pd.DataFrame({'date': [min_date, max_date], 'l1_rate_max': [l1_rate_max, l1_rate_max]})
+    #l1_rate_max_plot = l1_rate_max_df.hvplot.line(x='date', y='l1_rate_max', label='L1 Rate Max').opts(line_dash='dashed', line_width=2, line_color='red', muted_alpha=0)
+    
+    
+    # l1 RATE TARGET parameter
+    # Select max value from L1 Rate Target dataframe
+    l1_rate_target_data = l1_rate_target_data.reset_index()
+    l1_rate_target_max = l1_rate_target_data['l1_rate_target'].max()
+    
+    # Create colorcet single color using hexadecimal
+    cyan_color = '#17BECF'
+    l1_rate_target_plot = hv.Curve([(min_date, l1_rate_target_max), (max_date, l1_rate_target_max)], label='L1 Rate Target').opts(line_color=cyan_color, line_width=2, muted_alpha=0)
+    
     # Create a composite plot with all the plots merged
-    composite_plot = lines_plot * single_channel_scatter_plot  * max_line_plot * all_channels_scatter_plot *  l1_r_control_plot * l0_r_control_plot * l1_rate_max_plot
+    composite_plot = lines_plot * single_channel_scatter_plot  * max_line_plot * all_channels_scatter_plot *  l1_r_control_plot * l0_r_control_plot * l1_rate_max_plot * l1_rate_target_plot
 
     return composite_plot.opts(legend_position='top', responsive=True, min_height=500, hooks=[disable_logo], show_grid=True)
