@@ -29,6 +29,10 @@ pn.extension(loading_spinner='dots', loading_color='#00204e', sizing_mode="stret
 pd.options.plotting.backend = 'holoviews'
 pn.config.throttled = True
 
+# App Configuration
+DB_HOST = 'localhost'
+DB_PORT = 27017
+DB_COLLECTION = 'CACO'
 
 # Custom color maps recreated from this bars: https://camera.lst1.iac.es/mon0
 cmap_temps = LinearSegmentedColormap.from_list('cmap_temps', [
@@ -156,7 +160,7 @@ def update_dashboard(template, date_picker):
     pn.param.ParamMethod.loading_indicator = True
 
     # Setup BD Connection
-    db = database.connect('localhost', 27017, 'CACO')
+    db = database.connect(DB_HOST, DB_PORT, DB_COLLECTION)
 
     if (db == None):
         # dashboard_utils.display_database_error(template=template, show_alert=True)
@@ -241,7 +245,7 @@ def create_dashboard(template, date_filter=dt.date.today()):
     dashboard_utils.update_loading_message(template, '''<h1 style="text-align:center">Getting data...</h1>''')
 
     # Setup BD Connection
-    db = database.connect('localhost', 27017, 'CACO')
+    db = database.connect(DB_HOST, DB_PORT, DB_COLLECTION)
 
     if (db == None):
         dashboard_utils.display_database_error(template=template)
