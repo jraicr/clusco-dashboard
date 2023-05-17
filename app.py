@@ -441,5 +441,11 @@ if __name__ == '__main__':
             port = default_port
     else:
         port = default_port
-    pn.serve(get_user_dashboard, address='0.0.0.0', port=port, websocket_origin='127.0.0.1:5006', show=False, static_dirs={'images': './images'}, admin=True, title='Clusco Reports',
+        
+    # PRODUCTION SETTINGS
+    pn.serve(get_user_dashboard, address='0.0.0.0', port=port, websocket_origin='cluscomon1.lst1.iac.es', show=False, static_dirs={'images': './images'}, admin=True, title='Clusco Reports',
              threaded=True, n_threads=4, check_unused_sessions_milliseconds=5000, unused_session_lifetime=5000, log_level='debug')
+
+    # DEVELOPMENT SETTINGS
+    # pn.serve(get_user_dashboard, address='0.0.0.0', port=port, show=False, static_dirs={'images': './images'}, admin=True, title='Clusco Reports',
+    #          threaded=True, n_threads=4, check_unused_sessions_milliseconds=5000, unused_session_lifetime=5000, log_level='debug')
