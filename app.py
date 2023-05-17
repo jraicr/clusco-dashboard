@@ -30,7 +30,8 @@ pd.options.plotting.backend = 'holoviews'
 pn.config.throttled = True
 
 # App Configuration
-DB_HOST = 'localhost'
+#DB_HOST = 'localhost'
+DB_HOST = '161.72.87.9'
 DB_PORT = 27017
 DB_COLLECTION = 'CACO'
 
