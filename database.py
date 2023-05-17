@@ -181,7 +181,7 @@ def get_scalar_data_by_date(collection, property_name, date_time, value_field, i
             pandas_df = pandas_df[pandas_df[value_name] != 0]
 
         # Print pandas dataframe memory usage to console
-        pandas_df.info(memory_usage='deep')        
+        #pandas_df.info(memory_usage='deep')        
 
     else:  # Return a empty pandas dataframe in case no data is found
         pandas_df = pd.DataFrame()
