@@ -82,7 +82,7 @@ def restart_server_if_empty_task(interval_sec=60):
         print('Checking if server is empty to perform restart...')
         if pn.state.session_info['live'] == 0:
             print("Restarting server...")
-            os.execv(sys.executable, ['python'] + sys.argv)
+            os.execv(sys.executable, ['python -u'] + sys.argv)
         
 # Global variable to store the thread that will restart the server if it is empty
 restart_server_thread_task = threading.Thread(target=restart_server_if_empty_task)
