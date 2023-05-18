@@ -437,13 +437,16 @@ if __name__ == '__main__':
 
     args = sys.argv[1:]
 
-    if len(args) > 0:
+    if len(args) > 1:
+        print('(Length) Argumentos de ejecución', len(args))
         port_cmd_arg = args[0]
-        port = args[1]
 
         # Check if port is a number
-        if port_cmd_arg == '-p' and port.isdigit():
-            port = int(port)
+        if port_cmd_arg == '-p':
+            port = args[1]
+            if port.isdigit():
+                port = int(port)
+        
         else:  # Error in command line arguments
             print("Error indicating arguments or port. Using default port 5006")
             port = default_port
