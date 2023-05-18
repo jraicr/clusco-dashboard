@@ -103,7 +103,7 @@ def get_min_date_from_df(df):
 def create_plot_panel(df, title, id_var, var_name, value_name, xlabel, ylabel, cmap, climit, template, show_loading_msg=True):
 
     if show_loading_msg:
-        dashboard_utils.update_loading_message(template, f'''<h1 style="text-align:center">Making plots...</h1> <h2 style="text-align:center">({title})</h2> ''')
+        dashboard_utils.update_loading_message(template, f'''<h1 style="text-align:center">Making plots...</h1> <h2 style="text-align:center">({title.split(' (')[0]})</h2> ''')
 
     print("   - Creating plot panel for: " + title)
 
@@ -134,7 +134,7 @@ def create_l1_rate_plot_panel(dataList, title, id_var, var_name, value_name, xla
     df = dataList[0]
 
     if show_loading_msg:
-        dashboard_utils.update_loading_message(template, f'''<h1 style="text-align:center">Making plots...</h1> <h2 style="text-align:center">({title})</h2> ''')
+        dashboard_utils.update_loading_message(template, f'''<h1 style="text-align:center">Making plots...</h1> <h2 style="text-align:center">({title.split(' (')[0]})</h2> ''')
 
     print("   - Creating plot panel for: " + title)
 
