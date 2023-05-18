@@ -154,6 +154,33 @@ def create_l1_rate_plot_panel(dataList, title, id_var, var_name, value_name, xla
         plot_panel = pn.panel(plot, widget_location='bottom', widgets={
                             var_name: c_widget}, sizing_mode='stretch_width', linked_axes=False)
 
+    return plot_panel
+
+
+def create_l0_ipr_plot_panel(dataList, title, id_var, var_name, value_name, xlabel, ylabel, cmap, climit, template, show_loading_msg=True):
+
+    df = dataList[0]
+
+    if show_loading_msg:
+        dashboard_utils.update_loading_message(template, f'''<h1 style="text-align:center">Making plots...</h1> <h2 style="text-align:center">({title.split(' (')[0]})</h2> ''')
+
+    print("   - Creating plot panel for: " + title)
+
+    if (df.empty):
+        print("   - No data to plot for: " + title)
+        plot = plot_helper.create_empty_plot()
+        plot_panel = pn.panel(plot, sizing_mode='stretch_width', linked_axes=False)
+    
+    else:
+        plot = plot_helper.plot_l0_ipr_data(dataList, id_var, value_name,
+                        title, xlabel, ylabel, var_name, cmap, climit)
+
+        c_widget = pn.widgets.DiscreteSlider
+        c_widget.align = 'center'
+        c_widget.sizing_mode = 'stretch_width'
+
+        plot_panel = pn.panel(plot, widget_location='bottom', widgets={
+                            var_name: c_widget}, sizing_mode='stretch_width', linked_axes=False)
 
     return plot_panel
 
@@ -220,6 +247,13 @@ def create_dashboard(template, date_filter=dt.date.today(), update=False):
     l1_rate_target_data = database.get_scalar_data_by_date(collection=clusco_min_collection, property_name='clusco_l1_rate_target',
                                                            date_time=date_filter, value_field='avg', id_var='date', var_name='module', value_name='l1_rate_target', search_previous = not update)
 
+    # L0 Pixel Ipr Data
+    l0_pixel_ipr_data = database.get_data_by_date(collection=clusco_min_collection, property_name='l0_pixel_ipr',
+                                                   date_time=date_filter, value_field='avg', id_var='date', var_name='channel', value_name='l0_pixel_ipr', search_previous = not update)
+    
+    l0_rate_max_data = database.get_scalar_data_by_date(collection=clusco_min_collection, property_name='clusco_l0_rate_max', 
+                                                        date_time=date_filter, value_field='avg', id_var='date', var_name='channel', value_name='l0_rate_max', search_previous = not update)
+
     # close mongodb connection
     db.client.close()
 
@@ -227,7 +261,8 @@ def create_dashboard(template, date_filter=dt.date.today(), update=False):
         dashboard_utils.update_loading_message(template, '''<h1 style="text-align:center">Making plots...</h1>''')
 
 
-    # We need to get all the dates from the collected data, since can be some of them that are from previous days
+    # We need to get all the dates from the collected data, since some of them could be comming from previous days
+    #  and we are anotatting title plots with the date...
     data_min_date_dict = {
         'pacta_temperature': get_min_date_from_df(pacta_temperature_data),
         'scb_temperature': get_min_date_from_df(scb_temperature_data),
@@ -236,6 +271,7 @@ def create_dashboard(template, date_filter=dt.date.today(), update=False):
         'hv': get_min_date_from_df(hv_data),
         'scb_backplane_temperature': get_min_date_from_df(scb_backplane_temperature_data),
         'l1_rate': get_min_date_from_df(l1_rate_data),
+        'l0_pixel_ipr_data': get_min_date_from_df(l0_pixel_ipr_data),
     }   
 
     if update is False:
@@ -293,6 +329,12 @@ def create_dashboard(template, date_filter=dt.date.today(), update=False):
     if update:
         template.main[0][0][1][0, 0] = l1_rate_plot_panel
 
+    l0_pixel_ipr_title = 'L0 Pixel IPR ' + '(' + str(data_min_date_dict['l0_pixel_ipr_data']) + ')'
+    l0_pixel_ipr_panel = create_l0_ipr_plot_panel([l0_pixel_ipr_data, l0_rate_max_data], l0_pixel_ipr_title, 'date', 'channel', 'l0_pixel_ipr', 'Time (UTC)', 'L0 Pixel IPR (Hz)', cmap_temps, (0, 1000), template, not update)
+
+    if update:
+        template.main[0][0][1][0, 1] = l0_pixel_ipr_panel
+
     if update is False:
         dashboard_utils.update_loading_message(template, '''<h1 style="text-align:center">Deploying dashboard...</h1>''')
     
@@ -313,10 +355,9 @@ def create_dashboard(template, date_filter=dt.date.today(), update=False):
         # =========================
         # SECOND GRID - SECOND TAB
         # =========================
-        grid_b = pn.GridSpec(sizing_mode='stretch_width',
-                        
-                        ncols=3, nrows=2, mode='override')
+        grid_b = pn.GridSpec(sizing_mode='stretch_width', ncols=3, nrows=2, mode='override')
         grid_b[0, 0] = l1_rate_plot_panel
+        grid_b[0, 1] = l0_pixel_ipr_panel
 
         png_pane = pn.pane.PNG('./images/cta-logo.png', width=200, align='center')
         sidebar_col = pn.Column(pn.layout.HSpacer(), png_pane,

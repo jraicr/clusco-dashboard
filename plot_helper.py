@@ -234,8 +234,6 @@ def plot_l1_rate_data(data_list, x, y, title, xlabel, ylabel, groupby, cmap_cust
     data = data.reset_index()
     min_date = data['date'].min()
     max_date = data['date'].max()
-
-
     
     orange_color = '#FF7F0E'
     l1_rate_max_plot = hv.Curve([(min_date, l1_rate_max), (max_date, l1_rate_max)], label='L1 Rate Max').opts(line_color=orange_color, line_width=2, muted_alpha=0)
@@ -257,5 +255,52 @@ def plot_l1_rate_data(data_list, x, y, title, xlabel, ylabel, groupby, cmap_cust
     
     # Create a composite plot with all the plots merged
     composite_plot = lines_plot * single_channel_scatter_plot  * max_line_plot * all_channels_scatter_plot *  l1_r_control_plot * l0_r_control_plot * l1_rate_max_plot * l1_rate_target_plot
+
+    return composite_plot.opts(legend_position='top', responsive=True, min_height=500, hooks=[disable_logo], show_grid=True)
+
+
+def plot_l0_ipr_data(data_list, x, y, title, xlabel, ylabel, groupby, cmap_custom, clim):
+
+    data = data_list[0]
+    l0_rate_max_data = data_list[1]
+
+    # Build a pandas dataframe from the original dataframe and select the min and max values for each date
+    df_with_min_max_avg = build_min_max_avg(data, x, y, groupby)
+    
+    # Just for debugging purposes: Check if we have duplicated indexes (dates) in the dataframe
+    # print(df_with_min_max_avg[df_with_min_max_avg.index.duplicated(keep=False)])
+
+    max_line_plot = hvplot_df_max_min_avg_line(df_with_min_max_avg, x=x, y=y, title=title, dic_opts={
+        'padding': 0.1, 'tools': ['hover'], 'xlabel': xlabel, 'ylabel': ylabel, 'axiswise': True, 'show_legend': True}, category=groupby)
+    
+    # Plot lines grouped by channel from data (channel is selected by widget and just one channel is shown at a time)
+    lines_plot = hvplot_df_line(data, x=x, y=y, title=title, dic_opts={
+        'padding': 0.1, 'tools': ['hover'], 'xlabel': xlabel, 'ylabel': ylabel, 'axiswise': True}, groupby=groupby, color='purple')
+
+    # Plot scatter from data for a single channel
+    single_channel_scatter_plot = hvplot_df_scatter(data, x=x, y=y, title=title, color=y, cmap=cmap_custom, size=15, marker='o', dic_opts={
+        'padding': 0.1, 'tools': [''], 'xlabel': xlabel, 'ylabel': ylabel, 'clim': clim, 'alpha': 0.5}, groupby=groupby)
+
+    
+    # Plot scatter from data for all channels (rasterized)
+    all_channels_scatter_plot = hvplot_df_scatter(data, x=x, y=y, title=title, color=y, cmap=cmap_custom,  size=20, marker='o', dic_opts={
+                                                  'padding': 0.1, 'tools': [''], 'xlabel': xlabel, 'alpha': 0.15, 'ylabel': ylabel, 'clim': clim,}, rasterize=True, dynamic=False)
+
+    
+
+    # L0 RATE MAX
+    # Select max value from L0 Rate Max dataframe
+    l0_rate_max = l0_rate_max_data['l0_rate_max'].max()
+
+    data = data.reset_index()
+    min_date = data['date'].min()
+    max_date = data['date'].max()
+
+    orange_color = '#FF7F0E'
+    l0_rate_max_plot = hv.Curve([(min_date, l0_rate_max), (max_date, l0_rate_max)], label='L0 Rate Max').opts(line_color=orange_color, line_width=2, muted_alpha=0)
+
+
+    # Create a composite plot with all the plots merged
+    composite_plot = lines_plot * single_channel_scatter_plot  * max_line_plot * all_channels_scatter_plot * l0_rate_max_plot
 
     return composite_plot.opts(legend_position='top', responsive=True, min_height=500, hooks=[disable_logo], show_grid=True)
