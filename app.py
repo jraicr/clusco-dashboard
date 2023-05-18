@@ -89,17 +89,23 @@ def restart_server_if_empty_task(interval_sec=60):
 restart_server_thread_task = threading.Thread(target=restart_server_if_empty_task)
 restart_server_thread_task.daemon = True
 
-def create_plot_panel(df, title, date_picker, id_var, var_name, value_name, xlabel, ylabel, cmap, climit, template, show_loading_msg=True):
+def get_min_date_from_df(df):
+    # This function returns the minimum date from a dataframe
+    minDate = None
+    
+    if (len(df.index) > 0):
+        minDate = df.index[0].date()
+    else:
+        minDate = None
+
+    return minDate
+
+def create_plot_panel(df, title, id_var, var_name, value_name, xlabel, ylabel, cmap, climit, template, show_loading_msg=True):
 
     if show_loading_msg:
         dashboard_utils.update_loading_message(template, f'''<h1 style="text-align:center">Making plots...</h1> <h2 style="text-align:center">({title})</h2> ''')
 
     print("   - Creating plot panel for: " + title)
-
-    if isinstance(date_picker, pn.widgets.input.DatePicker):
-        date_filter = date_picker.value
-    else:
-        date_filter = date_picker
 
     if (df.empty):
         print("   - No data to plot for: " + title)
@@ -108,9 +114,11 @@ def create_plot_panel(df, title, date_picker, id_var, var_name, value_name, xlab
     
     else:
         plot = plot_helper.plot_data(df, id_var, value_name,
-                        title + ' (' + str(date_filter) + ')', xlabel, ylabel, var_name, cmap, climit)
+                        title, xlabel, ylabel, var_name, cmap, climit)
 
         c_widget = pn.widgets.DiscreteSlider
+        #c_widget = pn.widgets.IntInput
+        #c_widget = pn.widgets.NumberInput
         c_widget.align = 'center'
         c_widget.sizing_mode = 'stretch_width'
 
@@ -121,7 +129,7 @@ def create_plot_panel(df, title, date_picker, id_var, var_name, value_name, xlab
     return plot_panel
 
 
-def create_l1_rate_plot_panel(dataList, title, date_picker, id_var, var_name, value_name, xlabel, ylabel, cmap, climit, template, show_loading_msg=True):
+def create_l1_rate_plot_panel(dataList, title, id_var, var_name, value_name, xlabel, ylabel, cmap, climit, template, show_loading_msg=True):
 
     df = dataList[0]
 
@@ -130,11 +138,6 @@ def create_l1_rate_plot_panel(dataList, title, date_picker, id_var, var_name, va
 
     print("   - Creating plot panel for: " + title)
 
-    if isinstance(date_picker, pn.widgets.input.DatePicker):
-        date_filter = date_picker.value
-    else:
-        date_filter = date_picker
-
     if (df.empty):
         print("   - No data to plot for: " + title)
         plot = plot_helper.create_empty_plot()
@@ -142,7 +145,7 @@ def create_l1_rate_plot_panel(dataList, title, date_picker, id_var, var_name, va
     
     else:
         plot = plot_helper.plot_l1_rate_data(dataList, id_var, value_name,
-                        title + ' (' + str(date_filter) + ')', xlabel, ylabel, var_name, cmap, climit)
+                        title, xlabel, ylabel, var_name, cmap, climit)
 
         c_widget = pn.widgets.DiscreteSlider
         c_widget.align = 'center'
@@ -154,102 +157,20 @@ def create_l1_rate_plot_panel(dataList, title, date_picker, id_var, var_name, va
 
     return plot_panel
 
-def update_dashboard(template, date_picker):
-    print('Updating dashboard')
+
+def create_dashboard(template, date_filter=dt.date.today(), update=False):
+
+    if update:
+        print('Updating dashboard')
+    else:
+        print('Creating dashboard')
         
     tic = time.perf_counter()
 
     pn.param.ParamMethod.loading_indicator = True
 
-    # Setup BD Connection
-    db = database.connect(DB_HOST, DB_PORT, DB_COLLECTION)
-
-    if (db == None):
-        # dashboard_utils.display_database_error(template=template, show_alert=True)
-        dashboard_utils.display_database_error(template=template)
-        exit()
-
-    clusco_min_collection = db['CLUSCO_min']
-
-     # Data retrieved from database
-    pacta_temperature_data = database.get_data_by_date(collection=clusco_min_collection, property_name='scb_pixel_temperature',
-                                            date_time=date_picker, value_field='avg', id_var='date', var_name='channel', value_name='temperature', search_previous=False)
-
-    scb_temperature_data = database.get_data_by_date(collection=clusco_min_collection, property_name='scb_temperature',
-                                            date_time=date_picker, value_field='avg', id_var='date', var_name='module', value_name='temperature', search_previous=False)
-
-    scb_humidity_data = database.get_data_by_date(collection=clusco_min_collection, property_name='scb_humidity',
-                                        date_time=date_picker, value_field='avg', id_var='date', var_name='module', value_name='humidity', search_previous=False)
-
-    scb_anode_current_data = database.get_data_by_date(collection=clusco_min_collection, property_name='scb_pixel_an_current',
-                                            date_time=date_picker, value_field='avg', id_var='date', var_name='channel', value_name='anode', search_previous=False)
-
-    hv_data = database.get_data_by_date(collection=clusco_min_collection, property_name='scb_pixel_hv_monitored',
-                            date_time=date_picker, value_field='avg', id_var='date', var_name='channel', value_name='hv', search_previous=False)
-    
-    scb_backplane_temperature_data = database.get_data_by_date(collection=clusco_min_collection, property_name='backplane_temperature',
-                                            date_time=date_picker, value_field='avg', id_var='date', var_name='module', value_name='temperature', search_previous=False)
-
-
-    # L1 Rate plot data
-    l1_rate_data = database.get_data_by_date(collection=clusco_min_collection, property_name='l1_rate',
-                                            date_time=date_picker, value_field='avg', id_var='date', var_name='module', value_name='l1_rate', search_previous=False)
-    
-    l1_rate_control_data = database.get_scalar_data_by_date(collection=clusco_min_collection, property_name='clusco_l1_rate_control',
-                                            date_time=date_picker, value_field='avg', id_var='date', var_name='module', value_name='l1_rate_control', remove_zero_values=True, search_previous=False)
-    
-    l0_rate_control_data = database.get_scalar_data_by_date(collection=clusco_min_collection, property_name='clusco_l0_rate_control',
-                                            date_time=date_picker, value_field='avg', id_var='date', var_name='module', value_name='l0_rate_control', remove_zero_values=True, search_previous=False)
-
-    l1_rate_max_data = database.get_scalar_data_by_date(collection=clusco_min_collection, property_name='clusco_l1_rate_max',
-                                            date_time=date_picker, value_field='avg', id_var='date', var_name='module', value_name='l1_rate_max')
-    
-    
-    l1_rate_target_data = database.get_scalar_data_by_date(collection=clusco_min_collection, property_name='clusco_l1_rate_target',
-                                                           date_time=date_picker, value_field='avg', id_var='date', var_name='module', value_name='l1_rate_target')
-    
-    # close mongodb connection
-    db.client.close()
-
-    print("\nMaking plots...")
-
-    # Panels for the first dashboard tab
-    pacta_temp_plot_panel = create_plot_panel(pacta_temperature_data, 'PACTA Temperature', date_picker, 'date', 'channel', 'temperature', 'Time (UTC)', 'Temperature (ºC)', cmap_temps, (0, 30), template, False)
-    template.main[0][0][0][0, 0] = pacta_temp_plot_panel
-    
-    scb_temp_plot_panel = create_plot_panel(scb_temperature_data, 'SCB Temperature', date_picker, 'date', 'module', 'temperature', 'Time (UTC)', 'Temperature (ºC)', cmap_temps, (0, 30), template, False)
-    template.main[0][0][0][0, 1] = scb_temp_plot_panel
-    
-    scb_humidity_plot_panel = create_plot_panel(scb_humidity_data, 'SCB Humidity', date_picker, 'date', 'module', 'humidity', 'Time (UTC)', 'Humidity (%)', cmap_humidty, (0, 80), template, False)
-    template.main[0][0][0][0, 2] = scb_humidity_plot_panel
-
-    scb_anode_current_plot_panel = create_plot_panel(scb_anode_current_data, 'Anode Current', date_picker, 'date', 'channel', 'anode', 'Time (UTC)', 'Anode Current (µA)', cmap_anode, (0, 100), template, False)
-    template.main[0][0][0][1, 0] = scb_anode_current_plot_panel
-
-    hv_plot_panel = create_plot_panel(hv_data, 'High Voltage', date_picker, 'date', 'channel', 'hv', 'Date', 'HV (V)', cmap_hv, (10, 1400), template, False)
-    template.main[0][0][0][1, 1] = hv_plot_panel
-
-    scb_backplane_temp_plot_panel = create_plot_panel(scb_backplane_temperature_data, 'SCB Backplane Temperature', date_picker, 'date', 'module', 'temperature', 'Time (UTC)', 'Temperature (ºC)', cmap_backplane_temp, (0, 37), template, False)
-    template.main[0][0][0][1, 2] = scb_backplane_temp_plot_panel
-
-    # Panels for the second dashboard tab
-    l1_rate_plot_panel = create_l1_rate_plot_panel([l1_rate_data, l0_rate_control_data, l1_rate_control_data, l1_rate_max_data, l1_rate_target_data], 'L1 Rate', date_picker, 'date', 'module', 'l1_rate', 'Time (UTC)', 'L1 Rate (Hz)', cmap_temps, (0, 1000), template, False)
-
-    template.main[0][0][1][0, 0] = l1_rate_plot_panel
-
-    toc = time.perf_counter()
-    print(f"\Dashboard updated in {toc - tic:0.4f} seconds")
-
-
-def create_dashboard(template, date_filter=dt.date.today()):
-
-    print('Creating dashboard')
-        
-    tic = time.perf_counter()
-
-    pn.param.ParamMethod.loading_indicator = True
-
-    dashboard_utils.update_loading_message(template, '''<h1 style="text-align:center">Getting data...</h1>''')
+    if update is False:
+        dashboard_utils.update_loading_message(template, '''<h1 style="text-align:center">Getting data...</h1>''')
 
     # Setup BD Connection
     db = database.connect(DB_HOST, DB_PORT, DB_COLLECTION)
@@ -262,132 +183,175 @@ def create_dashboard(template, date_filter=dt.date.today()):
 
     # Data retrieved from database
     pacta_temperature_data = database.get_data_by_date(collection=clusco_min_collection, property_name='scb_pixel_temperature',
-                                            date_time=date_filter, value_field='avg', id_var='date', var_name='channel', value_name='temperature')
+                                            date_time=date_filter, value_field='avg', id_var='date', var_name='channel', value_name='temperature', search_previous = not update)
 
-    
-    # Start date based on the date looked up by pacta_temperature
-    if (len(pacta_temperature_data.index) > 0):
-        # get the first date value from pacta_temperature_data
-        # the index dataframe is the date, so we can get the first date value from pacta_temperature_data
-        start_date = pacta_temperature_data.index[0].date()
-    else:
-        print('No data recovered...')
-        sys.exit()
     
     scb_temperature_data = database.get_data_by_date(collection=clusco_min_collection, property_name='scb_temperature',
-                                            date_time=start_date, value_field='avg', id_var='date', var_name='module', value_name='temperature')
+                                            date_time=date_filter, value_field='avg', id_var='date', var_name='module', value_name='temperature', search_previous = not update)
 
     scb_humidity_data = database.get_data_by_date(collection=clusco_min_collection, property_name='scb_humidity',
-                                        date_time=start_date, value_field='avg', id_var='date', var_name='module', value_name='humidity')
+                                        date_time=date_filter, value_field='avg', id_var='date', var_name='module', value_name='humidity', search_previous = not update)
 
     scb_anode_current_data = database.get_data_by_date(collection=clusco_min_collection, property_name='scb_pixel_an_current',
-                                            date_time=start_date, value_field='avg', id_var='date', var_name='channel', value_name='anode')
+                                            date_time=date_filter, value_field='avg', id_var='date', var_name='channel', value_name='anode', search_previous = not update)
 
     hv_data = database.get_data_by_date(collection=clusco_min_collection, property_name='scb_pixel_hv_monitored',
-                            date_time=start_date, value_field='avg', id_var='date', var_name='channel', value_name='hv')
+                            date_time=date_filter, value_field='avg', id_var='date', var_name='channel', value_name='hv', search_previous = not update)
     
     scb_backplane_temperature_data = database.get_data_by_date(collection=clusco_min_collection, property_name='backplane_temperature',
-                                            date_time=start_date, value_field='avg', id_var='date', var_name='module', value_name='temperature')
+                                            date_time=date_filter, value_field='avg', id_var='date', var_name='module', value_name='temperature', search_previous = not update)
 
 
     # L1 Rate plot data
     l1_rate_data = database.get_data_by_date(collection=clusco_min_collection, property_name='l1_rate',
-                                            date_time=start_date, value_field='avg', id_var='date', var_name='module', value_name='l1_rate')
+                                            date_time=date_filter, value_field='avg', id_var='date', var_name='module', value_name='l1_rate', search_previous = not update)
     
     
     l1_rate_control_data = database.get_scalar_data_by_date(collection=clusco_min_collection, property_name='clusco_l1_rate_control',
-                                            date_time=start_date, value_field='avg', id_var='date', var_name='module', value_name='l1_rate_control', remove_zero_values=True)
+                                            date_time=date_filter, value_field='avg', id_var='date', var_name='module', value_name='l1_rate_control', search_previous = not update, remove_zero_values=True)
     
 
     l0_rate_control_data = database.get_scalar_data_by_date(collection=clusco_min_collection, property_name='clusco_l0_rate_control',
-                                            date_time=start_date, value_field='avg', id_var='date', var_name='module', value_name='l0_rate_control', remove_zero_values=True)
+                                            date_time=date_filter, value_field='avg', id_var='date', var_name='module', value_name='l0_rate_control', search_previous = not update, remove_zero_values=True)
     
     l1_rate_max_data = database.get_scalar_data_by_date(collection=clusco_min_collection, property_name='clusco_l1_rate_max',
-                                            date_time=start_date, value_field='avg', id_var='date', var_name='module', value_name='l1_rate_max')
+                                            date_time=date_filter, value_field='avg', id_var='date', var_name='module', value_name='l1_rate_max', search_previous = not update)
     
     l1_rate_target_data = database.get_scalar_data_by_date(collection=clusco_min_collection, property_name='clusco_l1_rate_target',
-                                                           date_time=start_date, value_field='avg', id_var='date', var_name='module', value_name='l1_rate_target')
+                                                           date_time=date_filter, value_field='avg', id_var='date', var_name='module', value_name='l1_rate_target', search_previous = not update)
 
-    #print(l1_rate_max_data)
     # close mongodb connection
     db.client.close()
 
-    dashboard_utils.update_loading_message(template, '''<h1 style="text-align:center">Making plots...</h1>''')
+    if update is False:
+        dashboard_utils.update_loading_message(template, '''<h1 style="text-align:center">Making plots...</h1>''')
 
-    date_picker = pn.widgets.DatePicker(
-        name='Date Selection', value=start_date, end=dt.date.today())
+
+    # We need to get all the dates from the collected data, since can be some of them that are from previous days
+    data_min_date_dict = {
+        'pacta_temperature': get_min_date_from_df(pacta_temperature_data),
+        'scb_temperature': get_min_date_from_df(scb_temperature_data),
+        'scb_humidity': get_min_date_from_df(scb_humidity_data),
+        'scb_anode_current': get_min_date_from_df(scb_anode_current_data),
+        'hv': get_min_date_from_df(hv_data),
+        'scb_backplane_temperature': get_min_date_from_df(scb_backplane_temperature_data),
+        'l1_rate': get_min_date_from_df(l1_rate_data),
+    }   
+
+    if update is False:
+        min_date_from_data = min([x for x in data_min_date_dict.values() if x is not None])
+        print(min_date_from_data)
+
+        date_picker = pn.widgets.DatePicker(
+            name='Date Selection', value=min_date_from_data, end=dt.date.today())
 
     print("\nMaking plots...")
 
     # First dashboard tab
-    pacta_temp_plot_panel =  create_plot_panel(pacta_temperature_data, 'PACTA Temperature', date_picker, 'date', 'channel', 'temperature', 'Time (UTC)', 'Temperature (ºC)', cmap_temps, (0, 30), template) 
-    scb_temp_plot_panel = create_plot_panel(scb_temperature_data, 'SCB Temperature', date_picker, 'date', 'module', 'temperature', 'Time (UTC)', 'Temperature (ºC)', cmap_temps, (0, 30), template)
-    scb_humidity_plot_panel = create_plot_panel(scb_humidity_data, 'SCB Humidity', date_picker, 'date', 'module', 'humidity', 'Time (UTC)', 'Humidity (%)', cmap_humidty, (0, 80), template)
-    scb_anode_current_plot_panel = create_plot_panel(scb_anode_current_data, 'Anode Current', date_picker, 'date', 'channel', 'anode', 'Time (UTC)', 'Anode Current (µA)', cmap_anode, (0, 100), template)
-    hv_plot_panel = create_plot_panel(hv_data, 'High Voltage', date_picker, 'date', 'channel', 'hv', 'Date', 'HV (V)', cmap_hv, (10, 1400), template)
-    scb_backplane_temp_plot_panel = create_plot_panel(scb_backplane_temperature_data, 'SCB Backplane Temperature', date_picker, 'date', 'module', 'temperature', 'Time (UTC)', 'Temperature (ºC)', cmap_backplane_temp, (0, 37), template)
+    pacta_temp_title = 'PACTA Temperature ' + '(' + str(data_min_date_dict['pacta_temperature']) + ')'
+    pacta_temp_plot_panel =  create_plot_panel(pacta_temperature_data, pacta_temp_title, 'date', 'channel', 'temperature', 'Time (UTC)', 'Temperature (ºC)', cmap_temps, (0, 30), template, not update) 
+
+    if update:
+        template.main[0][0][0][0, 0] = pacta_temp_plot_panel
+
+    scb_temp_title = 'SCB Temperature ' + '(' + str(data_min_date_dict['scb_temperature']) + ')'
+    scb_temp_plot_panel = create_plot_panel(scb_temperature_data, scb_temp_title, 'date', 'module', 'temperature', 'Time (UTC)', 'Temperature (ºC)', cmap_temps, (0, 30), template, not update)
+
+    if update:
+        template.main[0][0][0][0, 1] = scb_temp_plot_panel
+
+    scb_humidity_title = 'SCB Humidity ' + '(' + str(data_min_date_dict['scb_humidity']) + ')'
+    scb_humidity_plot_panel = create_plot_panel(scb_humidity_data, scb_humidity_title, 'date', 'module', 'humidity', 'Time (UTC)', 'Humidity (%)', cmap_humidty, (0, 80), template, not update)
+
+    if update:
+        template.main[0][0][0][0, 2] = scb_humidity_plot_panel
+    
+    scb_anode_title = 'SCB Anode Current ' + '(' + str(data_min_date_dict['scb_anode_current']) + ')'
+    scb_anode_current_plot_panel = create_plot_panel(scb_anode_current_data, scb_anode_title, 'date', 'channel', 'anode', 'Time (UTC)', 'Anode Current (µA)', cmap_anode, (0, 100), template, not update)
+
+    if update:
+        template.main[0][0][0][1, 0] = scb_anode_current_plot_panel
+
+    hv_title = 'High Voltage ' + '(' + str(data_min_date_dict['hv']) + ')'
+    hv_plot_panel = create_plot_panel(hv_data, hv_title, 'date', 'channel', 'hv', 'Date', 'HV (V)', cmap_hv, (10, 1400), template, not update)
+    
+    if update:
+        template.main[0][0][0][1, 1] = hv_plot_panel
+    
+    
+    scb_backplane_temp_title = 'SCB Backplane Temperature ' + '(' + str(data_min_date_dict['scb_backplane_temperature']) + ')'
+    scb_backplane_temp_plot_panel = create_plot_panel(scb_backplane_temperature_data, scb_backplane_temp_title, 'date', 'module', 'temperature', 'Time (UTC)', 'Temperature (ºC)', cmap_backplane_temp, (0, 37), template, not update)
+
+    if update:
+        template.main[0][0][0][1, 2] = scb_backplane_temp_plot_panel
 
     # Second dashboard tab
-    l1_rate_plot_panel = create_l1_rate_plot_panel([l1_rate_data, l0_rate_control_data, l1_rate_control_data, l1_rate_max_data, l1_rate_target_data], 'L1 Rate', date_picker, 'date', 'module', 'l1_rate', 'Time (UTC)', 'L1 Rate (Hz)', cmap_temps, (0, 1000), template)
+    l1_rate_title = 'L1 Rate ' + '(' + str(data_min_date_dict['l1_rate']) + ')'
+    l1_rate_plot_panel = create_l1_rate_plot_panel([l1_rate_data, l0_rate_control_data, l1_rate_control_data, l1_rate_max_data, l1_rate_target_data],
+                l1_rate_title, 'date', 'module', 'l1_rate', 'Time (UTC)', 'L1 Rate (Hz)', cmap_temps, (0, 1000), template, not update)
 
-    dashboard_utils.update_loading_message(template, '''<h1 style="text-align:center">Deploying dashboard...</h1>''')
+    if update:
+        template.main[0][0][1][0, 0] = l1_rate_plot_panel
 
-    # =========================
-    # FIRST GRID - FIRST TAB
-    # =========================
-    # Creates a grid from GridSpec and adds plots to it
-    grid = pn.GridSpec(sizing_mode='stretch_both',
-                    ncols=3, nrows=2, mode='override')
-
-    grid[0, 0] = pacta_temp_plot_panel
-    grid[0, 1] = scb_temp_plot_panel
-    grid[0, 2] = scb_humidity_plot_panel
-    grid[1, 0] = scb_anode_current_plot_panel
-    grid[1, 1] = hv_plot_panel
-    grid[1, 2] = scb_backplane_temp_plot_panel
-
-    # =========================
-    # SECOND GRID - SECOND TAB
-    # =========================
-    grid_b = pn.GridSpec(sizing_mode='stretch_width',
-                       
-                    ncols=3, nrows=2, mode='override')
-    grid_b[0, 0] = l1_rate_plot_panel
-
-    png_pane = pn.pane.PNG('./images/cta-logo.png', width=200, align='center')
-    sidebar_col = pn.Column(pn.layout.HSpacer(), png_pane,
-                            pn.layout.HSpacer(), date_picker)
-
-    # Append tabs and grids to template main
-    template.main[0].sizing_mode = 'stretch_both'
+    if update is False:
+        dashboard_utils.update_loading_message(template, '''<h1 style="text-align:center">Deploying dashboard...</h1>''')
     
-    # Creating tabs and appending grids to it
-    tabs = pn.Tabs(('Pixel Temp, Anode and HV - SCB Temp and Humidity', grid), ('Rates', grid_b))
+        # =========================
+        # FIRST GRID - FIRST TAB
+        # =========================
+        # Creates a grid from GridSpec and adds plots to it
+        grid = pn.GridSpec(sizing_mode='stretch_both',
+                        ncols=3, nrows=2, mode='override')
 
-    # template.main[0][0] = grid
-    template.main[0][0] = tabs
+        grid[0, 0] = pacta_temp_plot_panel
+        grid[0, 1] = scb_temp_plot_panel
+        grid[0, 2] = scb_humidity_plot_panel
+        grid[1, 0] = scb_anode_current_plot_panel
+        grid[1, 1] = hv_plot_panel
+        grid[1, 2] = scb_backplane_temp_plot_panel
 
-    # Append content to template sidebar
-    template.sidebar.objects[0].sizing_mode = 'stretch_both'
-    template.sidebar[0][0] = sidebar_col
+        # =========================
+        # SECOND GRID - SECOND TAB
+        # =========================
+        grid_b = pn.GridSpec(sizing_mode='stretch_width',
+                        
+                        ncols=3, nrows=2, mode='override')
+        grid_b[0, 0] = l1_rate_plot_panel
 
+        png_pane = pn.pane.PNG('./images/cta-logo.png', width=200, align='center')
+        sidebar_col = pn.Column(pn.layout.HSpacer(), png_pane,
+                                pn.layout.HSpacer(), date_picker)
+
+        # Append tabs and grids to template main
+        template.main[0].sizing_mode = 'stretch_both'
+        
+        # Creating tabs and appending grids to it
+        tabs = pn.Tabs(('Pixel Temp, Anode and HV - SCB Temp and Humidity', grid), ('Rates', grid_b))
+
+        # template.main[0][0] = grid
+        template.main[0][0] = tabs
+
+        # Append content to template sidebar
+        template.sidebar.objects[0].sizing_mode = 'stretch_both'
+        template.sidebar[0][0] = sidebar_col
+
+        @pn.depends(date_picker.param.value, watch=True)
+        def thread_update_dashboard_task(date_picker):
+
+            # Iterates each tab to activates loading indicator for each panel
+            for tabs in template.main[0][0]:
+                for panel in tabs:
+                    #print(panel)
+                    # set param loading indicator param in panel to True
+                    panel[0].loading = True        
+
+            # Create thread to run update_dashboard and pass template and date_picker as arguments
+            t = threading.Thread(target=create_dashboard, args=(template, date_picker, True))
+            t.daemon = False
+            t.start()
+    
     toc = time.perf_counter()
-    print(f"\nServer started in {toc - tic:0.4f} seconds")
-
-    @pn.depends(date_picker.param.value, watch=True)
-    def thread_update_dashboard_task(date_picker):
-
-        # Iterates each tab to activates loading indicator for each panel
-        for tabs in template.main[0][0]:
-            for panel in tabs:
-                #print(panel)
-                # set param loading indicator param in panel to True
-                panel[0].loading = True        
-
-        # Create thread to run update_dashboard and pass template and date_picker as arguments
-        t = threading.Thread(target=update_dashboard, args=(template, date_picker))
-        t.daemon = False
-        t.start()
+    print(f"\Dashboard deployed in {toc - tic:0.4f} seconds")
 
 
 def destroyed(session_context):
@@ -397,7 +361,8 @@ def destroyed(session_context):
     if  not restart_server_thread_task.is_alive():
         print("Starting restart server thread...")
         restart_server_thread_task.start()
-    
+
+
 def get_user_dashboard():
 
     material_dashboard = pn.template.MaterialTemplate(
