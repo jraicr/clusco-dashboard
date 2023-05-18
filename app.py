@@ -439,7 +439,6 @@ if __name__ == '__main__':
     args = sys.argv[1:]
 
     if len(args) > 1:
-        print('(Length) Argumentos de ejecución', len(args))
         port_cmd_arg = args[0]
 
         # Check if port is a number
