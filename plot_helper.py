@@ -4,7 +4,22 @@ import gc
 
 gc.enable()
 
-def hvplot_df_line(df:pd.DataFrame, x, y, title:str, dic_opts:dict, groupby:str, color:str='green'):
+def hvplot_df_line(df:pd.DataFrame, x, y, title:str, dic_opts:dict, color:str='green'):
+    """
+    Plots a pandas dataframe line plot.
+    """
+    print(df.head())
+    dynamic_map = df.hvplot.line(x=x, y=y, title=title, color=color, hover_cols='all',
+                                 responsive=True, min_height=400, muted_alpha=0)
+
+    
+    options = list(dic_opts.items())
+    dynamic_map.opts(**dict(options))
+
+    return dynamic_map
+
+
+def hvplot_df_grouped_line(df:pd.DataFrame, x, y, title:str, dic_opts:dict, groupby:str, color:str='green'):
     """
     Plots a pandas dataframe line plot.
     """
@@ -12,7 +27,6 @@ def hvplot_df_line(df:pd.DataFrame, x, y, title:str, dic_opts:dict, groupby:str,
     dynamic_map = df.hvplot.line(x=x, y=y, title=title, color=color, groupby=groupby, hover_cols='all',
                                  label='selected ' + groupby,  responsive=True, min_height=400, muted_alpha=0)
 
-    
     options = list(dic_opts.items())
     dynamic_map.opts(**dict(options))
 
@@ -23,7 +37,6 @@ def hvplot_df_line(df:pd.DataFrame, x, y, title:str, dic_opts:dict, groupby:str,
 def hvplot_df_max_min_avg_line(df, x, y, title, dic_opts, category):
     """_summary_
     Plots a pandas dataframe line plot with max, min and average columns in df.
-    # TODO: Refactorize this to use only one function for all line plots.
     """
 
     # dynamic_map = df.hvplot.line(x=x, y=['max', 'min', 'mean'], title=title,
@@ -151,8 +164,7 @@ def disable_logo(plot, element):
     plot.state.toolbar.logo = None
 
 
-
-def plot_data(data, x, y, title, xlabel, ylabel, groupby, cmap_custom, clim):
+def multiplot_grouped_data(data, x, y, title, xlabel, ylabel, groupby, cmap_custom, clim):
 
     # Build a pandas dataframe from the original dataframe and select the min and max values for each date
     df_with_min_max_avg = build_min_max_avg(data, x, y, groupby)
@@ -164,7 +176,7 @@ def plot_data(data, x, y, title, xlabel, ylabel, groupby, cmap_custom, clim):
         'padding': 0.1, 'tools': ['hover'], 'xlabel': xlabel, 'ylabel': ylabel, 'axiswise': True, 'show_legend': True}, category=groupby)
     
     # Plot lines grouped by channel from data (channel is selected by widget and just one channel is shown at a time)
-    lines_plot = hvplot_df_line(data, x=x, y=y, title=title, dic_opts={
+    lines_plot = hvplot_df_grouped_line(data, x=x, y=y, title=title, dic_opts={
         'padding': 0.1, 'tools': ['hover'], 'xlabel': xlabel, 'ylabel': ylabel, 'axiswise': True}, groupby=groupby, color='purple')
 
     # Plot scatter from data for a single channel
@@ -173,7 +185,7 @@ def plot_data(data, x, y, title, xlabel, ylabel, groupby, cmap_custom, clim):
 
     # Plot scatter from data for all channels (rasterized)
     all_channels_scatter_plot = hvplot_df_scatter(data, x=x, y=y, title=title, color=y, cmap=cmap_custom,  size=20, marker='o', dic_opts={
-                                                  'padding': 0.1, 'tools': [''], 'xlabel': xlabel, 'alpha': 0.15, 'ylabel': ylabel, 'clim': clim,}, rasterize=True, dynamic=False)
+                                                  'padding': 0.1, 'tools': [''], 'xlabel': xlabel, 'alpha': 0.15, 'ylabel': ylabel, 'clim': clim}, rasterize=True, dynamic=False)
 
     # Create a composite plot with all the plots merged
     composite_plot = lines_plot * single_channel_scatter_plot  * max_line_plot * all_channels_scatter_plot
@@ -197,20 +209,20 @@ def plot_l1_rate_data(data_list, x, y, title, xlabel, ylabel, groupby, cmap_cust
     # print(df_with_min_max_avg[df_with_min_max_avg.index.duplicated(keep=False)])
 
     max_line_plot = hvplot_df_max_min_avg_line(df_with_min_max_avg, x=x, y=y, title=title, dic_opts={
-        'padding': 0.1, 'tools': ['hover'], 'xlabel': xlabel, 'ylabel': ylabel, 'axiswise': True, 'show_legend': True}, category=groupby)
+        'padding': 0.1, 'tools': ['hover'], 'xlabel': xlabel, 'ylabel': ylabel, 'axiswise': True, 'show_legend': True, 'responsive': True, 'min_height':400}, category=groupby)
     
     # Plot lines grouped by channel from data (channel is selected by widget and just one channel is shown at a time)
-    lines_plot = hvplot_df_line(data, x=x, y=y, title=title, dic_opts={
-        'padding': 0.1, 'tools': ['hover'], 'xlabel': xlabel, 'ylabel': ylabel, 'axiswise': True}, groupby=groupby, color='purple')
+    lines_plot = hvplot_df_grouped_line(data, x=x, y=y, title=title, dic_opts={
+        'padding': 0.1, 'tools': ['hover'], 'xlabel': xlabel, 'ylabel': ylabel, 'axiswise': True, 'responsive': True, 'min_height':400}, groupby=groupby, color='purple')
 
     # Plot scatter from data for a single channel
     single_channel_scatter_plot = hvplot_df_scatter(data, x=x, y=y, title=title, color=y, cmap=cmap_custom, size=15, marker='o', dic_opts={
-        'padding': 0.1, 'tools': [''], 'xlabel': xlabel, 'ylabel': ylabel, 'clim': clim, 'alpha': 0.5}, groupby=groupby)
+        'padding': 0.1, 'tools': [''], 'xlabel': xlabel, 'ylabel': ylabel, 'clim': clim, 'alpha': 0.5, 'responsive': True, 'min_height':400}, groupby=groupby)
 
     
     # Plot scatter from data for all channels (rasterized)
     all_channels_scatter_plot = hvplot_df_scatter(data, x=x, y=y, title=title, color=y, cmap=cmap_custom,  size=20, marker='o', dic_opts={
-                                                  'padding': 0.1, 'tools': [''], 'xlabel': xlabel, 'alpha': 0.15, 'ylabel': ylabel, 'clim': clim,}, rasterize=True, dynamic=False)
+                                                  'padding': 0.1, 'tools': [''], 'xlabel': xlabel, 'alpha': 0.15, 'ylabel': ylabel, 'clim': clim, 'responsive': True, 'min_height':400}, rasterize=True, dynamic=False)
 
     # L0 RATE CONTROL
     # Reset index of L0 Rate Control dataframe to be able to plot it
@@ -274,7 +286,7 @@ def plot_l0_ipr_data(data_list, x, y, title, xlabel, ylabel, groupby, cmap_custo
         'padding': 0.1, 'tools': ['hover'], 'xlabel': xlabel, 'ylabel': ylabel, 'axiswise': True, 'show_legend': True}, category=groupby)
     
     # Plot lines grouped by channel from data (channel is selected by widget and just one channel is shown at a time)
-    lines_plot = hvplot_df_line(data, x=x, y=y, title=title, dic_opts={
+    lines_plot = hvplot_df_grouped_line(data, x=x, y=y, title=title, dic_opts={
         'padding': 0.1, 'tools': ['hover'], 'xlabel': xlabel, 'ylabel': ylabel, 'axiswise': True}, groupby=groupby, color='purple')
 
     # Plot scatter from data for a single channel
@@ -304,3 +316,9 @@ def plot_l0_ipr_data(data_list, x, y, title, xlabel, ylabel, groupby, cmap_custo
     composite_plot = lines_plot * single_channel_scatter_plot  * max_line_plot * all_channels_scatter_plot * l0_rate_max_plot
 
     return composite_plot.opts(legend_position='top', responsive=True, min_height=500, hooks=[disable_logo], show_grid=True)
+
+
+def plot_tib_rate_data(data, title, xlabel, ylabel):
+
+    rates_plot = data.hvplot.line(x='date', y=['tib_busy_rate', 'calibration_rate', 'camera_rate', 'local_rate', 'pedestal_rate'], title=title, grid=True, responsive=True, min_height=400, legend='top', muted_alpha=0, yformatter='%.0f')
+    return rates_plot.opts(legend_position='top', xlabel=xlabel, ylabel=ylabel, hooks=[disable_logo], show_grid=True, responsive=True, min_height=500)

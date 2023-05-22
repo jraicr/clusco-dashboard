@@ -21,7 +21,6 @@ import plot_helper
 
 
 gc.enable()
-#gc.set_debug(gc.DEBUG_STATS | gc.DEBUG_LEAK)
 
 # Holoviz and Pandas Settings
 hv.extension('bokeh', logo=False) 
@@ -113,18 +112,17 @@ def create_plot_panel(df, title, id_var, var_name, value_name, xlabel, ylabel, c
         plot_panel = pn.panel(plot, sizing_mode='stretch_width', linked_axes=False)
     
     else:
-        plot = plot_helper.plot_data(df, id_var, value_name,
+        plot = plot_helper.multiplot_grouped_data(df, id_var, value_name,
                         title, xlabel, ylabel, var_name, cmap, climit)
 
         c_widget = pn.widgets.DiscreteSlider
-        #c_widget = pn.widgets.IntInput
-        #c_widget = pn.widgets.NumberInput
         c_widget.align = 'center'
         c_widget.sizing_mode = 'stretch_width'
+        # c_widget.width_policy = ''
 
         plot_panel = pn.panel(plot, widget_location='bottom', widgets={
                             var_name: c_widget}, sizing_mode='stretch_width', linked_axes=False)
-
+        
 
     return plot_panel
 
@@ -185,6 +183,25 @@ def create_l0_ipr_plot_panel(dataList, title, id_var, var_name, value_name, xlab
     return plot_panel
 
 
+def create_tib_rates_plot_panel(data, title, xlabel, ylabel, template, show_loading_msg=True):
+
+    if show_loading_msg:
+        dashboard_utils.update_loading_message(template, f'''<h1 style="text-align:center">Making plots...</h1> <h2 style="text-align:center">({title.split(' (')[0]})</h2> ''')
+
+    print("   - Creating plot panel for: " + title)
+
+    if (data.empty):
+        print("   - No data to plot for: " + title)
+        plot = plot_helper.create_empty_plot()
+        plot_panel = pn.panel(plot, sizing_mode='stretch_width', linked_axes=False)
+        
+    else:
+        plot = plot_helper.plot_tib_rate_data(data, title, xlabel, ylabel)
+
+        plot_panel = pn.Column(plot, sizing_mode='stretch_width')
+    return plot_panel
+
+
 def create_dashboard(template, date_filter=dt.date.today(), update=False):
 
     if update:
@@ -207,12 +224,12 @@ def create_dashboard(template, date_filter=dt.date.today(), update=False):
         exit()
 
     clusco_min_collection = db['CLUSCO_min']
+    tib_min_collection = db['TIB_min'] 
 
     # Data retrieved from database
     pacta_temperature_data = database.get_data_by_date(collection=clusco_min_collection, property_name='scb_pixel_temperature',
                                             date_time=date_filter, value_field='avg', id_var='date', var_name='channel', value_name='temperature', search_previous = not update)
 
-    
     scb_temperature_data = database.get_data_by_date(collection=clusco_min_collection, property_name='scb_temperature',
                                             date_time=date_filter, value_field='avg', id_var='date', var_name='module', value_name='temperature', search_previous = not update)
 
@@ -233,10 +250,8 @@ def create_dashboard(template, date_filter=dt.date.today(), update=False):
     l1_rate_data = database.get_data_by_date(collection=clusco_min_collection, property_name='l1_rate',
                                             date_time=date_filter, value_field='avg', id_var='date', var_name='module', value_name='l1_rate', search_previous = not update)
     
-    
     l1_rate_control_data = database.get_scalar_data_by_date(collection=clusco_min_collection, property_name='clusco_l1_rate_control',
                                             date_time=date_filter, value_field='avg', id_var='date', var_name='module', value_name='l1_rate_control', search_previous = not update, remove_zero_values=True)
-    
 
     l0_rate_control_data = database.get_scalar_data_by_date(collection=clusco_min_collection, property_name='clusco_l0_rate_control',
                                             date_time=date_filter, value_field='avg', id_var='date', var_name='module', value_name='l0_rate_control', search_previous = not update, remove_zero_values=True)
@@ -254,6 +269,23 @@ def create_dashboard(template, date_filter=dt.date.today(), update=False):
     l0_rate_max_data = database.get_scalar_data_by_date(collection=clusco_min_collection, property_name='clusco_l0_rate_max', 
                                                         date_time=date_filter, value_field='avg', id_var='date', var_name='channel', value_name='l0_rate_max', search_previous = not update)
 
+    # TIB rates data
+    tib_busy_rate_data = database.get_scalar_data_by_date(collection=tib_min_collection, property_name='TIB_Rates_BUSYRate', date_time=date_filter, value_field='avg', id_var='date', var_name='TIB Rate Busy', value_name='tib_busy_rate', search_previous = not update)
+    tib_calibration_rate_data = database.get_scalar_data_by_date(collection=tib_min_collection, property_name='TIB_Rates_CalibrationRate', date_time=date_filter, value_field='avg', id_var='date', var_name='TIB Rate Calibration', value_name='calibration_rate', search_previous = not update)
+    tib_camera_rate_data = database.get_scalar_data_by_date(collection=tib_min_collection, property_name='TIB_Rates_CameraRate', date_time=date_filter, value_field='avg', id_var='date', var_name='TIB Rate Camera', value_name='camera_rate', search_previous = not update)
+    tib_local_rate_data = database.get_scalar_data_by_date(collection=tib_min_collection, property_name='TIB_Rates_LocalRate', date_time=date_filter, value_field='avg', id_var='date', var_name='TIB Rate Local', value_name='local_rate', search_previous = not update)
+    tib_pedestal_rate_data = database.get_scalar_data_by_date(collection=tib_min_collection, property_name='TIB_Rates_PedestalRate', date_time=date_filter, value_field='avg', id_var='date', var_name='TIB Rate Pedestal', value_name='pedestal_rate', search_previous = not update)
+    
+    # Merges all tib dataframe in a single one with all the rates in columns
+    if tib_busy_rate_data.empty is False:
+        tib_rates_data = pd.merge(tib_busy_rate_data, tib_calibration_rate_data, on=['date'], how='outer')
+        tib_rates_data = pd.merge(tib_rates_data, tib_camera_rate_data, on=['date'], how='outer')
+        tib_rates_data = pd.merge(tib_rates_data, tib_local_rate_data, on=['date'], how='outer')
+        tib_rates_data = pd.merge(tib_rates_data, tib_pedestal_rate_data, on=['date'], how='outer')
+    else:
+        #empty df
+        tib_rates_data = pd.DataFrame()
+    
     # close mongodb connection
     db.client.close()
 
@@ -272,18 +304,20 @@ def create_dashboard(template, date_filter=dt.date.today(), update=False):
         'scb_backplane_temperature': get_min_date_from_df(scb_backplane_temperature_data),
         'l1_rate': get_min_date_from_df(l1_rate_data),
         'l0_pixel_ipr_data': get_min_date_from_df(l0_pixel_ipr_data),
+        'tib_rates': get_min_date_from_df(tib_rates_data)
     }   
 
     if update is False:
         min_date_from_data = min([x for x in data_min_date_dict.values() if x is not None])
-        print(min_date_from_data)
 
         date_picker = pn.widgets.DatePicker(
             name='Date Selection', value=min_date_from_data, end=dt.date.today())
 
     print("\nMaking plots...")
 
-    # First dashboard tab
+    # # # # # # # # # # # # #
+    # First dashboard tab  #
+    # # # # # # # # # # # # #
     pacta_temp_title = 'PACTA Temperature ' + '(' + str(data_min_date_dict['pacta_temperature']) + ')'
     pacta_temp_plot_panel =  create_plot_panel(pacta_temperature_data, pacta_temp_title, 'date', 'channel', 'temperature', 'Time (UTC)', 'Temperature (ºC)', cmap_temps, (0, 30), template, not update) 
 
@@ -321,7 +355,11 @@ def create_dashboard(template, date_filter=dt.date.today(), update=False):
     if update:
         template.main[0][0][0][1, 2] = scb_backplane_temp_plot_panel
 
-    # Second dashboard tab
+
+    # # # # # # # # # # # # #
+    # Second dashboard tab  #
+    # # # # # # # # # # # # #
+
     l1_rate_title = 'L1 Rate ' + '(' + str(data_min_date_dict['l1_rate']) + ')'
     l1_rate_plot_panel = create_l1_rate_plot_panel([l1_rate_data, l0_rate_control_data, l1_rate_control_data, l1_rate_max_data, l1_rate_target_data],
                 l1_rate_title, 'date', 'module', 'l1_rate', 'Time (UTC)', 'L1 Rate (Hz)', cmap_temps, (0, 1000), template, not update)
@@ -334,6 +372,13 @@ def create_dashboard(template, date_filter=dt.date.today(), update=False):
 
     if update:
         template.main[0][0][1][0, 1] = l0_pixel_ipr_panel
+
+    tib_rates_title = 'TIB Rates ' + '(' + str(data_min_date_dict['tib_rates']) + ')'
+    tib_rates_panel = create_tib_rates_plot_panel(tib_rates_data, tib_rates_title, 'Time (UTC)', 'TIB Rates (Hz)', template, not update)
+
+    if update:
+        template.main[0][0][1][1, :] = tib_rates_panel
+
 
     if update is False:
         dashboard_utils.update_loading_message(template, '''<h1 style="text-align:center">Deploying dashboard...</h1>''')
@@ -355,9 +400,11 @@ def create_dashboard(template, date_filter=dt.date.today(), update=False):
         # =========================
         # SECOND GRID - SECOND TAB
         # =========================
-        grid_b = pn.GridSpec(sizing_mode='stretch_width', ncols=3, nrows=2, mode='override')
+        grid_b = pn.GridSpec(sizing_mode='stretch_both', ncols=2, nrows=2, mode='override')
         grid_b[0, 0] = l1_rate_plot_panel
         grid_b[0, 1] = l0_pixel_ipr_panel
+        grid_b[1, :] = tib_rates_panel
+        
 
         png_pane = pn.pane.PNG('./images/cta-logo.png', width=200, align='center')
         sidebar_col = pn.Column(pn.layout.HSpacer(), png_pane,
@@ -366,7 +413,7 @@ def create_dashboard(template, date_filter=dt.date.today(), update=False):
         # Append tabs and grids to template main
         template.main[0].sizing_mode = 'stretch_both'
         
-        # Creating tabs and appending grids to it
+        # Creating tabs and appends grids to it
         tabs = pn.Tabs(('Pixel Temp, Anode and HV - SCB Temp and Humidity', grid), ('Rates', grid_b))
 
         # template.main[0][0] = grid
