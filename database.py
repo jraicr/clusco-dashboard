@@ -8,7 +8,7 @@ def connect(host, port, database):
     """
     try:
         client = MongoClient(host=host, port=port,
-                             serverSelectionTimeoutMS=2000)
+                             serverSelectionTimeoutMS=5000)
         client.server_info()
     except:
         print(

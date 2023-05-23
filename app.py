@@ -13,12 +13,12 @@ import gc
 import threading
 import sys
 import os
+from dotenv import load_dotenv
 
 # Application modules
 import database
 import dashboard_utils
 import plot_helper
-
 
 gc.enable()
 
@@ -27,13 +27,23 @@ hv.extension('bokeh', logo=False)
 pn.extension(loading_spinner='dots', loading_color='#00204e', sizing_mode="stretch_width")
 pd.options.plotting.backend = 'holoviews'
 pn.config.throttled = True
+# pn.config.sizing_mode = 'stretch_width'
 
 # App Configuration
-#DB_HOST = 'localhost'
-DB_HOST = '161.72.87.9'
-DB_PORT = 27017
-DB_COLLECTION = 'CACO'
+load_dotenv()
 
+DB_HOST = os.environ.get('DB_HOST')
+DB_PORT = int(os.environ.get('DB_PORT'))
+DB_NAME = os.environ.get('DB_NAME')
+
+print(f'DB_HOST: {DB_HOST}')
+print(type(DB_HOST))
+
+print(f'DB_PORT: {DB_PORT}')
+print(type(DB_PORT))
+
+print(f'DB_NAME: {DB_NAME}')
+print(type(DB_NAME))
 # Custom color maps recreated from this bars: https://camera.lst1.iac.es/mon0
 cmap_temps = LinearSegmentedColormap.from_list('cmap_temps', [
     (0, (0, 0, 1)),
@@ -236,7 +246,7 @@ def create_dashboard(template, date_filter=dt.date.today(), update=False):
         dashboard_utils.update_loading_message(template, '''<h1 style="text-align:center">Getting data...</h1>''')
 
     # Setup BD Connection
-    db = database.connect(DB_HOST, DB_PORT, DB_COLLECTION)
+    db = database.connect(DB_HOST, DB_PORT, DB_NAME)
 
     if (db == None):
         dashboard_utils.display_database_error(template=template)
@@ -547,11 +557,9 @@ if __name__ == '__main__':
             port = default_port
     else:
         port = default_port
-        
-    # PRODUCTION SETTINGS
-    pn.serve(get_user_dashboard, address='127.0.0.1', port=port, websocket_origin='cluscomon1.lst1.iac.es', show=False, static_dirs={'images': './images'}, admin=True, title='Clusco Reports',
-             threaded=True, n_threads=4, check_unused_sessions_milliseconds=5000, unused_session_lifetime=5000)
+    
 
-    # DEVELOPMENT SETTINGS
-    # pn.serve(get_user_dashboard, address='127.0.0.1', port=port, show=False, static_dirs={'images': './images'}, admin=True, title='Clusco Reports',
-    #          threaded=True, n_threads=4, check_unused_sessions_milliseconds=5000, unused_session_lifetime=5000, log_level='debug')
+    WEBSOCKET_ORIGIN = os.environ.get('WEBSOCKET_ORIGIN')
+    
+    pn.serve(get_user_dashboard, address='127.0.0.1', port=port, websocket_origin=WEBSOCKET_ORIGIN, show=False, static_dirs={'images': './images'}, admin=True, title='Clusco Reports',
+             threaded=True, n_threads=4, check_unused_sessions_milliseconds=5000, unused_session_lifetime=5000)
