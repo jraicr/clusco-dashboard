@@ -36,14 +36,6 @@ DB_HOST = os.environ.get('DB_HOST')
 DB_PORT = int(os.environ.get('DB_PORT'))
 DB_NAME = os.environ.get('DB_NAME')
 
-print(f'DB_HOST: {DB_HOST}')
-print(type(DB_HOST))
-
-print(f'DB_PORT: {DB_PORT}')
-print(type(DB_PORT))
-
-print(f'DB_NAME: {DB_NAME}')
-print(type(DB_NAME))
 # Custom color maps recreated from this bars: https://camera.lst1.iac.es/mon0
 cmap_temps = LinearSegmentedColormap.from_list('cmap_temps', [
     (0, (0, 0, 1)),
@@ -560,6 +552,6 @@ if __name__ == '__main__':
     
 
     WEBSOCKET_ORIGIN = os.environ.get('WEBSOCKET_ORIGIN')
-    
+
     pn.serve(get_user_dashboard, address='127.0.0.1', port=port, websocket_origin=WEBSOCKET_ORIGIN, show=False, static_dirs={'images': './images'}, admin=True, title='Clusco Reports',
              threaded=True, n_threads=4, check_unused_sessions_milliseconds=5000, unused_session_lifetime=5000)
