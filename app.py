@@ -202,12 +202,12 @@ def create_tib_rates_plot_panel(data, title, xlabel, ylabel, template, show_load
     return plot_panel
 
 
-def create_dragon_busy_plot_panel(data, title, xlabel, ylabel, template, update=False):
+def create_dragon_busy_plot_panel(data, title, xlabel, ylabel, template, show_loading_msg=True):
 
-    if update:
-        print('Updating plot panel')
-    else:
-        print('Creating plot panel')
+    if show_loading_msg:
+        dashboard_utils.update_loading_message(template, f'''<h1 style="text-align:center">Making plots...</h1> <h2 style="text-align:center">({title.split(' (')[0]})</h2> ''')
+
+    print("   - Creating plot panel for: " + title)
 
     if (data.empty):
         print("   - No data to plot for: " + title)
