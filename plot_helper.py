@@ -319,6 +319,11 @@ def plot_l0_ipr_data(data_list, x, y, title, xlabel, ylabel, groupby, cmap_custo
 
 
 def plot_tib_rate_data(data, title, xlabel, ylabel):
-
     rates_plot = data.hvplot.line(x='date', y=['tib_busy_rate', 'calibration_rate', 'camera_rate', 'local_rate', 'pedestal_rate'], title=title, grid=True, responsive=True, min_height=400, legend='top', muted_alpha=0, yformatter='%.0f')
     return rates_plot.opts(legend_position='top', xlabel=xlabel, ylabel=ylabel, hooks=[disable_logo], show_grid=True, responsive=True, min_height=500)
+
+
+def plot_dragon_busy_data(data, title, xlabel, ylabel):
+    busy_plot = data.hvplot.scatter(x='date', y='module', c='busy_status', cmap='viridis', title=title, grid=True, responsive=True, min_height=400, max_height=750)
+    return busy_plot.opts(xlabel=xlabel, ylabel=ylabel, hooks=[disable_logo], show_grid=True, responsive=True, min_height=500, max_height=750, clim=(0, 3), color_levels=[0, 0.5, 1.5, 2.5, 3], clabel='Busy Status')
+    

@@ -202,6 +202,25 @@ def create_tib_rates_plot_panel(data, title, xlabel, ylabel, template, show_load
     return plot_panel
 
 
+def create_dragon_busy_plot_panel(data, title, xlabel, ylabel, template, update=False):
+
+    if update:
+        print('Updating plot panel')
+    else:
+        print('Creating plot panel')
+
+    if (data.empty):
+        print("   - No data to plot for: " + title)
+        plot = plot_helper.create_empty_plot()
+        plot_panel = pn.panel(plot, sizing_mode='stretch_width', linked_axes=False)
+        
+    else:
+        plot = plot_helper.plot_dragon_busy_data(data, title, xlabel, ylabel)
+
+        plot_panel = pn.panel(plot, sizing_mode='stretch_width', linked_axes=False)
+    return plot_panel
+
+
 def create_dashboard(template, date_filter=dt.date.today(), update=False):
 
     if update:
@@ -286,6 +305,10 @@ def create_dashboard(template, date_filter=dt.date.today(), update=False):
         #empty df
         tib_rates_data = pd.DataFrame()
     
+    # Dragon Busy
+    dragon_busy_data = database.get_data_by_date(collection=clusco_min_collection, property_name='dragon_busy', date_time=date_filter, value_field='avg', id_var='date', var_name='module', value_name='busy_status', search_previous = not update)
+    print(dragon_busy_data)
+
     # close mongodb connection
     db.client.close()
 
@@ -295,6 +318,7 @@ def create_dashboard(template, date_filter=dt.date.today(), update=False):
 
     # We need to get all the dates from the collected data, since some of them could be comming from previous days
     #  and we are anotatting title plots with the date...
+    # TODO: Get rid of this and shows an empty plot if the data is empty...
     data_min_date_dict = {
         'pacta_temperature': get_min_date_from_df(pacta_temperature_data),
         'scb_temperature': get_min_date_from_df(scb_temperature_data),
@@ -304,7 +328,8 @@ def create_dashboard(template, date_filter=dt.date.today(), update=False):
         'scb_backplane_temperature': get_min_date_from_df(scb_backplane_temperature_data),
         'l1_rate': get_min_date_from_df(l1_rate_data),
         'l0_pixel_ipr_data': get_min_date_from_df(l0_pixel_ipr_data),
-        'tib_rates': get_min_date_from_df(tib_rates_data)
+        'tib_rates': get_min_date_from_df(tib_rates_data),
+        'dragon_busy': get_min_date_from_df(dragon_busy_data)
     }   
 
     if update is False:
@@ -379,6 +404,16 @@ def create_dashboard(template, date_filter=dt.date.today(), update=False):
     if update:
         template.main[0][0][1][1, :] = tib_rates_panel
 
+    # # # # # # # # # # # # #
+    # Third dashboard tab   #
+    # # # # # # # # # # # # #
+
+    dragon_busy_title = 'Dragon Busy ' + '(' + str(data_min_date_dict['dragon_busy']) + ')'
+    dragon_busy_panel = create_dragon_busy_plot_panel(dragon_busy_data, dragon_busy_title, 'Time (UTC)', 'Module ID', template, not update)
+
+    if update:
+        template.main[0][0][2][0, :] = dragon_busy_panel
+
 
     if update is False:
         dashboard_utils.update_loading_message(template, '''<h1 style="text-align:center">Deploying dashboard...</h1>''')
@@ -405,7 +440,14 @@ def create_dashboard(template, date_filter=dt.date.today(), update=False):
         grid_b[0, 1] = l0_pixel_ipr_panel
         grid_b[1, :] = tib_rates_panel
         
+        # =========================
+        # THIRD GRID - THIRD TAB
+        # =========================
+        grid_c = pn.GridSpec(sizing_mode='stretch_both', ncols=1, nrows=1, mode='override')
+        grid_c[0, 0] = dragon_busy_panel
+        
 
+        # Sidebar creation
         png_pane = pn.pane.PNG('./images/cta-logo.png', width=200, align='center')
         sidebar_col = pn.Column(pn.layout.HSpacer(), png_pane,
                                 pn.layout.HSpacer(), date_picker)
@@ -414,7 +456,7 @@ def create_dashboard(template, date_filter=dt.date.today(), update=False):
         template.main[0].sizing_mode = 'stretch_both'
         
         # Creating tabs and appends grids to it
-        tabs = pn.Tabs(('Pixel Temp, Anode and HV - SCB Temp and Humidity', grid), ('Rates', grid_b))
+        tabs = pn.Tabs(('Pixel Temp, Anode & HV - SCB Temp & Humidity', grid), ('Rates', grid_b), ('Dragon Busy', grid_c))
 
         # template.main[0][0] = grid
         template.main[0][0] = tabs
