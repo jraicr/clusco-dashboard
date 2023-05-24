@@ -1,4 +1,4 @@
-name: holoviz-env-hv-updated
+name: holoviz-test
 channels:
   - defaults
   - conda-forge
