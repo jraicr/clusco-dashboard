@@ -220,7 +220,7 @@ def create_dragon_busy_plot_panel(data, title, xlabel, ylabel, template, show_lo
         plot = plot_helper.plot_dragon_busy_data(data, title, xlabel, ylabel)
 
         plot_panel = pn.panel(plot, sizing_mode='stretch_width', linked_axes=False)
-        
+
     return plot_panel
 
 
@@ -441,9 +441,15 @@ def create_dashboard(template, date_filter=dt.date.today(), update=False):
         
 
         # Sidebar creation
+
+        date_selection_info = """### Observations about date selection \n Please note that when selecting a date, the graphs will display data from 12:00 pm\
+              on the selected day until 12:00 pm the following day. If you wish to view data from before 12:00 pm on\
+              the selected day, you should select the previous day."""
+        
         png_pane = pn.pane.PNG('./images/cta-logo.png', width=200, align='center')
         sidebar_col = pn.Column(pn.layout.HSpacer(), png_pane,
-                                pn.layout.HSpacer(), date_picker)
+                                pn.layout.HSpacer(), date_picker,
+                                date_selection_info)
 
         # Append tabs and grids to template main
         template.main[0].sizing_mode = 'stretch_both'
