@@ -187,12 +187,13 @@ def create_l0_ipr_plot_panel(dataList, title, id_var, var_name, value_name, xlab
 
 def create_tib_rates_plot_panel(data, title, xlabel, ylabel, template, show_loading_msg=True):
 
+    df = data[0]
     if show_loading_msg:
         dashboard_utils.update_loading_message(template, f'''<h1 style="text-align:center">Making plots...</h1> <h2 style="text-align:center">({title.split(' (')[0]})</h2> ''')
 
     print("   - Creating plot panel for: " + title)
 
-    if (data.empty):
+    if (df.empty):
         print("   - No data to plot for: " + title)
         plot = plot_helper.create_empty_plot()
         plot_panel = pn.panel(plot, sizing_mode='stretch_width', linked_axes=False)
@@ -305,16 +306,18 @@ def create_dashboard(template, date_filter=dt.date.today(), update=False):
     tib_camera_rate_data = database.get_scalar_data_by_date(collection=tib_min_collection, property_name='TIB_Rates_CameraRate', date_time=min_filtered_date, value_field='avg', id_var='date', var_name='TIB Rate Camera', value_name='camera_rate', search_previous = False)
     tib_local_rate_data = database.get_scalar_data_by_date(collection=tib_min_collection, property_name='TIB_Rates_LocalRate', date_time=min_filtered_date, value_field='avg', id_var='date', var_name='TIB Rate Local', value_name='local_rate', search_previous = False)
     tib_pedestal_rate_data = database.get_scalar_data_by_date(collection=tib_min_collection, property_name='TIB_Rates_PedestalRate', date_time=min_filtered_date, value_field='avg', id_var='date', var_name='TIB Rate Pedestal', value_name='pedestal_rate', search_previous = False)
-    
-    # Merges all tib dataframe in a single one with all the rates in columns
-    if tib_busy_rate_data.empty is False:
-        tib_rates_data = pd.merge(tib_busy_rate_data, tib_calibration_rate_data, on=['date'], how='outer')
-        tib_rates_data = pd.merge(tib_rates_data, tib_camera_rate_data, on=['date'], how='outer')
-        tib_rates_data = pd.merge(tib_rates_data, tib_local_rate_data, on=['date'], how='outer')
-        tib_rates_data = pd.merge(tib_rates_data, tib_pedestal_rate_data, on=['date'], how='outer')
-    else:
-        #empty df
-        tib_rates_data = pd.DataFrame()
+
+
+    # # Merges all tib dataframe in a single one with all the rates in columns
+    # if tib_busy_rate_data.empty is False:
+    #     tib_rates_data = pd.merge(tib_busy_rate_data, tib_calibration_rate_data, on=['date'], how='outer')
+    #     tib_rates_data = pd.merge(tib_rates_data, tib_camera_rate_data, on=['date'], how='outer')
+    #     tib_rates_data = pd.merge(tib_rates_data, tib_local_rate_data, on=['date'], how='outer')
+    #     tib_rates_data = pd.merge(tib_rates_data, tib_pedestal_rate_data, on=['date'], how='outer')
+
+    # else:
+    #     #empty df
+    #     tib_rates_data = pd.DataFrame()
     
     # Dragon Busy
     dragon_busy_data = database.get_data_by_date(collection=clusco_min_collection, property_name='dragon_busy', date_time=min_filtered_date, value_field='avg', id_var='date', var_name='module', value_name='busy_status', search_previous = False)
@@ -392,7 +395,7 @@ def create_dashboard(template, date_filter=dt.date.today(), update=False):
         template.main[0][0][1][0, 1] = l0_pixel_ipr_panel
 
     tib_rates_title = 'TIB Rates ' + '(' + str(min_filtered_date) + ')'
-    tib_rates_panel = create_tib_rates_plot_panel(tib_rates_data, tib_rates_title, 'Time (UTC)', 'TIB Rates (Hz)', template, not update)
+    tib_rates_panel = create_tib_rates_plot_panel([tib_busy_rate_data, tib_calibration_rate_data, tib_camera_rate_data, tib_local_rate_data, tib_pedestal_rate_data], tib_rates_title, 'Time (UTC)', 'TIB Rates (Hz)', template, not update)
 
     if update:
         template.main[0][0][1][1, :] = tib_rates_panel

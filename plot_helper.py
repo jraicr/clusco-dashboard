@@ -316,7 +316,21 @@ def plot_l0_ipr_data(data_list, x, y, title, xlabel, ylabel, groupby, cmap_custo
 
 
 def plot_tib_rate_data(data, title, xlabel, ylabel):
-    rates_plot = data.hvplot.line(x='date', y=['tib_busy_rate', 'calibration_rate', 'camera_rate', 'local_rate', 'pedestal_rate'], title=title, grid=True, responsive=True, min_height=400, legend='top', muted_alpha=0, yformatter='%.0f')
+    tib_busy_rate_data = data[0]
+    tib_calibration_rate_data = data[1]
+    tib_camera_rate_data = data[2]
+    tib_local_rate_data = data[3]
+    tib_pedestal_rate_data = data[4]
+
+    print(tib_busy_rate_data)
+    
+    tib_busy_rate_plot = tib_busy_rate_data.hvplot.line(x='date', y=tib_busy_rate_data, title=title, grid=True, responsive=True, min_height=400, legend='top', label='busy', muted_alpha=0, yformatter='%.0f')
+    tib_calibration_rate_plot = tib_calibration_rate_data.hvplot.line(x='date', y=tib_calibration_rate_data, title=title, grid=True, responsive=True, min_height=400, label='calibration', legend='top', muted_alpha=0, yformatter='%.0f')
+    tib_camera_rate_plot = tib_camera_rate_data.hvplot.line(x='date', y=tib_camera_rate_data, title=title, grid=True, responsive=True, min_height=400, legend='top', label='camera', muted_alpha=0, yformatter='%.0f')
+    tib_local_rate_plot = tib_local_rate_data.hvplot.line(x='date', y=tib_local_rate_data, title=title, grid=True, responsive=True, min_height=400, legend='top', label='local', muted_alpha=0, yformatter='%.0f')
+    tib_pedestal_rate_plot = tib_pedestal_rate_data.hvplot.line(x='date', y=tib_pedestal_rate_data, title=title, grid=True, responsive=True, min_height=400, label='pedestal', legend='top', muted_alpha=0, yformatter='%.0f')
+
+    rates_plot = tib_busy_rate_plot * tib_calibration_rate_plot * tib_camera_rate_plot * tib_local_rate_plot * tib_pedestal_rate_plot
     return rates_plot.opts(legend_position='top', xlabel=xlabel, ylabel=ylabel, hooks=[disable_logo], show_grid=True, responsive=True, min_height=500)
 
 
