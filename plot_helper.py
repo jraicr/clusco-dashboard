@@ -243,14 +243,14 @@ def plot_l1_rate_data(data_list, x, y, title, xlabel, ylabel, groupby, cmap_cust
     data = data.reset_index()
     min_date = data['date'].min()
     max_date = data['date'].max()
+    inf_sim_min_date = data['date'].min() - pd.Timedelta(days=360)
+    inf_sim_max_date = data['date'].max() + pd.Timedelta(days=360)
     
     orange_color = '#FF7F0E'
-    l1_rate_max_plot = hv.Curve([(min_date, l1_rate_max), (max_date, l1_rate_max)], label='L1 Rate Max').opts(line_color=orange_color, line_width=2, muted_alpha=0)
-    #l1_rate_max_plot = hv.HLine(l1_rate_max, label='L1 Rate Max').opts(line_dash='dashed', line_width=1, line_color='red', muted_alpha=0)
-    
-    # build a dataframe with the min and max dates and the l1_rate_max value and use hvplot to plot it
-    #l1_rate_max_df = pd.DataFrame({'date': [min_date, max_date], 'l1_rate_max': [l1_rate_max, l1_rate_max]})
-    #l1_rate_max_plot = l1_rate_max_df.hvplot.line(x='date', y='l1_rate_max', label='L1 Rate Max').opts(line_dash='dashed', line_width=2, line_color='red', muted_alpha=0)
+    l1_rate_max_plot = hv.Curve([(inf_sim_min_date, l1_rate_max), (inf_sim_max_date, l1_rate_max)], label='L1 Rate Max').opts(line_color=orange_color, line_width=2, muted_alpha=0, xlim=(min_date - pd.Timedelta(hours=1), max_date + pd.Timedelta(hours=1)))
+   
+    # Infinite lines with hv.HLine dont add legend label and it is a problem 
+    #l1_rate_max_plot = hv.HLine(l1_rate_max, label='L1 Rate Max').opts(line_dash='dashed', line_width=1, line_color=orange_color, muted_alpha=0)
     
     
     # l1 RATE TARGET parameter
@@ -260,7 +260,7 @@ def plot_l1_rate_data(data_list, x, y, title, xlabel, ylabel, groupby, cmap_cust
     
     # Create colorcet single color using hexadecimal
     cyan_color = '#17BECF'
-    l1_rate_target_plot = hv.Curve([(min_date, l1_rate_target_max), (max_date, l1_rate_target_max)], label='L1 Rate Target').opts(line_color=cyan_color, line_width=2, muted_alpha=0)
+    l1_rate_target_plot = hv.Curve([(inf_sim_min_date, l1_rate_target_max), (inf_sim_max_date, l1_rate_target_max)], label='L1 Rate Target').opts(line_color=cyan_color, line_width=2, muted_alpha=0, xlim=(min_date - pd.Timedelta(hours=1), max_date + pd.Timedelta(hours=1)))
     
     # Create a composite plot with all the plots merged
     composite_plot = lines_plot * single_channel_scatter_plot  * max_line_plot * all_channels_scatter_plot *  l1_r_control_plot * l0_r_control_plot * l1_rate_max_plot * l1_rate_target_plot
