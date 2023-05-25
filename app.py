@@ -90,17 +90,6 @@ def restart_server_if_empty_task(interval_sec=60):
 restart_server_thread_task = threading.Thread(target=restart_server_if_empty_task)
 restart_server_thread_task.daemon = True
 
-def get_min_date_from_df(df):
-
-    # This function returns the minimum date from a dataframe
-    minDate = None
-    
-    if (len(df.index) > 0):
-        minDate = df.index[0].date()
-    else:
-        minDate = None
-
-    return minDate
 
 def create_plot_panel(df, title, id_var, var_name, value_name, xlabel, ylabel, cmap, climit, template, show_loading_msg=True):
 
@@ -307,18 +296,6 @@ def create_dashboard(template, date_filter=dt.date.today(), update=False):
     tib_camera_rate_data = database.get_scalar_data_by_date(collection=tib_min_collection, property_name='TIB_Rates_CameraRate', date_time=min_filtered_date, value_field='avg', id_var='date', var_name='TIB Rate Camera', value_name='camera_rate', search_previous = False)
     tib_local_rate_data = database.get_scalar_data_by_date(collection=tib_min_collection, property_name='TIB_Rates_LocalRate', date_time=min_filtered_date, value_field='avg', id_var='date', var_name='TIB Rate Local', value_name='local_rate', search_previous = False)
     tib_pedestal_rate_data = database.get_scalar_data_by_date(collection=tib_min_collection, property_name='TIB_Rates_PedestalRate', date_time=min_filtered_date, value_field='avg', id_var='date', var_name='TIB Rate Pedestal', value_name='pedestal_rate', search_previous = False)
-
-
-    # # Merges all tib dataframe in a single one with all the rates in columns
-    # if tib_busy_rate_data.empty is False:
-    #     tib_rates_data = pd.merge(tib_busy_rate_data, tib_calibration_rate_data, on=['date'], how='outer')
-    #     tib_rates_data = pd.merge(tib_rates_data, tib_camera_rate_data, on=['date'], how='outer')
-    #     tib_rates_data = pd.merge(tib_rates_data, tib_local_rate_data, on=['date'], how='outer')
-    #     tib_rates_data = pd.merge(tib_rates_data, tib_pedestal_rate_data, on=['date'], how='outer')
-
-    # else:
-    #     #empty df
-    #     tib_rates_data = pd.DataFrame()
     
     # Dragon Busy
     dragon_busy_data = database.get_data_by_date(collection=clusco_min_collection, property_name='dragon_busy', date_time=min_filtered_date, value_field='max', id_var='date', var_name='module', value_name='busy_status', search_previous = False)
@@ -461,7 +438,6 @@ def create_dashboard(template, date_filter=dt.date.today(), update=False):
         # Creating tabs and appends grids to it
         tabs = pn.Tabs(('Pixel Temp, Anode & HV - SCB Temp & Humidity', grid), ('Rates', grid_b), ('Dragon Busy', grid_c))
 
-        # template.main[0][0] = grid
         template.main[0][0] = tabs
 
         # Append content to template sidebar
