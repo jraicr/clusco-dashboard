@@ -1,8 +1,5 @@
 import pandas as pd
 import holoviews as hv # noqa
-import gc
-
-gc.enable()
 
 def hvplot_df_line(df:pd.DataFrame, x, y, title:str, dic_opts:dict, color:str='green'):
     """
