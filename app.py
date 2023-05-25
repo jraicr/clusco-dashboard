@@ -91,6 +91,7 @@ restart_server_thread_task = threading.Thread(target=restart_server_if_empty_tas
 restart_server_thread_task.daemon = True
 
 def get_min_date_from_df(df):
+
     # This function returns the minimum date from a dataframe
     minDate = None
     
@@ -320,7 +321,7 @@ def create_dashboard(template, date_filter=dt.date.today(), update=False):
     #     tib_rates_data = pd.DataFrame()
     
     # Dragon Busy
-    dragon_busy_data = database.get_data_by_date(collection=clusco_min_collection, property_name='dragon_busy', date_time=min_filtered_date, value_field='avg', id_var='date', var_name='module', value_name='busy_status', search_previous = False)
+    dragon_busy_data = database.get_data_by_date(collection=clusco_min_collection, property_name='dragon_busy', date_time=min_filtered_date, value_field='max', id_var='date', var_name='module', value_name='busy_status', search_previous = False)
 
     # close mongodb connection
     db.client.close()
