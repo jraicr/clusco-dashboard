@@ -220,6 +220,7 @@ def create_dragon_busy_plot_panel(data, title, xlabel, ylabel, template, show_lo
         plot = plot_helper.plot_dragon_busy_data(data, title, xlabel, ylabel)
 
         plot_panel = pn.panel(plot, sizing_mode='stretch_width', linked_axes=False)
+        
     return plot_panel
 
 
@@ -251,51 +252,59 @@ def create_dashboard(template, date_filter=dt.date.today(), update=False):
     pacta_temperature_data = database.get_data_by_date(collection=clusco_min_collection, property_name='scb_pixel_temperature',
                                             date_time=date_filter, value_field='avg', id_var='date', var_name='channel', value_name='temperature', search_previous = not update)
 
+    # Get the min date (year-month-day) from the PACTA temperature dataframe, where date is the index of the dataframe,
+    # in case the dataframe is not empty. We are going to retrieve the data from the
+    # left plots from the first date with available data in the PACTA temperature data
+    if not pacta_temperature_data.empty:
+        min_filtered_date = pacta_temperature_data.index.min().date()
+    else:
+        min_filtered_date = date_filter
+
     scb_temperature_data = database.get_data_by_date(collection=clusco_min_collection, property_name='scb_temperature',
-                                            date_time=date_filter, value_field='avg', id_var='date', var_name='module', value_name='temperature', search_previous = not update)
+                                            date_time=min_filtered_date, value_field='avg', id_var='date', var_name='module', value_name='temperature', search_previous = False)
 
     scb_humidity_data = database.get_data_by_date(collection=clusco_min_collection, property_name='scb_humidity',
-                                        date_time=date_filter, value_field='avg', id_var='date', var_name='module', value_name='humidity', search_previous = not update)
+                                        date_time=min_filtered_date, value_field='avg', id_var='date', var_name='module', value_name='humidity', search_previous = False)
 
     scb_anode_current_data = database.get_data_by_date(collection=clusco_min_collection, property_name='scb_pixel_an_current',
-                                            date_time=date_filter, value_field='avg', id_var='date', var_name='channel', value_name='anode', search_previous = not update)
+                                            date_time=min_filtered_date, value_field='avg', id_var='date', var_name='channel', value_name='anode', search_previous = False)
 
     hv_data = database.get_data_by_date(collection=clusco_min_collection, property_name='scb_pixel_hv_monitored',
-                            date_time=date_filter, value_field='avg', id_var='date', var_name='channel', value_name='hv', search_previous = not update)
+                            date_time=min_filtered_date, value_field='avg', id_var='date', var_name='channel', value_name='hv', search_previous = False)
     
     scb_backplane_temperature_data = database.get_data_by_date(collection=clusco_min_collection, property_name='backplane_temperature',
-                                            date_time=date_filter, value_field='avg', id_var='date', var_name='module', value_name='temperature', search_previous = not update)
+                                            date_time=min_filtered_date, value_field='avg', id_var='date', var_name='module', value_name='temperature', search_previous = False)
 
 
     # L1 Rate plot data
     l1_rate_data = database.get_data_by_date(collection=clusco_min_collection, property_name='l1_rate',
-                                            date_time=date_filter, value_field='avg', id_var='date', var_name='module', value_name='l1_rate', search_previous = not update)
+                                            date_time=min_filtered_date, value_field='avg', id_var='date', var_name='module', value_name='l1_rate', search_previous = False)
     
     l1_rate_control_data = database.get_scalar_data_by_date(collection=clusco_min_collection, property_name='clusco_l1_rate_control',
-                                            date_time=date_filter, value_field='avg', id_var='date', var_name='module', value_name='l1_rate_control', search_previous = not update, remove_zero_values=True)
+                                            date_time=min_filtered_date, value_field='avg', id_var='date', var_name='module', value_name='l1_rate_control', search_previous = False, remove_zero_values=True)
 
     l0_rate_control_data = database.get_scalar_data_by_date(collection=clusco_min_collection, property_name='clusco_l0_rate_control',
-                                            date_time=date_filter, value_field='avg', id_var='date', var_name='module', value_name='l0_rate_control', search_previous = not update, remove_zero_values=True)
+                                            date_time=min_filtered_date, value_field='avg', id_var='date', var_name='module', value_name='l0_rate_control', search_previous = False, remove_zero_values=True)
     
     l1_rate_max_data = database.get_scalar_data_by_date(collection=clusco_min_collection, property_name='clusco_l1_rate_max',
-                                            date_time=date_filter, value_field='avg', id_var='date', var_name='module', value_name='l1_rate_max', search_previous = not update)
+                                            date_time=min_filtered_date, value_field='avg', id_var='date', var_name='module', value_name='l1_rate_max', search_previous = False)
     
     l1_rate_target_data = database.get_scalar_data_by_date(collection=clusco_min_collection, property_name='clusco_l1_rate_target',
-                                                           date_time=date_filter, value_field='avg', id_var='date', var_name='module', value_name='l1_rate_target', search_previous = not update)
+                                                           date_time=min_filtered_date, value_field='avg', id_var='date', var_name='module', value_name='l1_rate_target', search_previous = False)
 
     # L0 Pixel Ipr Data
     l0_pixel_ipr_data = database.get_data_by_date(collection=clusco_min_collection, property_name='l0_pixel_ipr',
-                                                   date_time=date_filter, value_field='avg', id_var='date', var_name='channel', value_name='l0_pixel_ipr', search_previous = not update)
+                                                   date_time=min_filtered_date, value_field='avg', id_var='date', var_name='channel', value_name='l0_pixel_ipr', search_previous = False)
     
     l0_rate_max_data = database.get_scalar_data_by_date(collection=clusco_min_collection, property_name='clusco_l0_rate_max', 
-                                                        date_time=date_filter, value_field='avg', id_var='date', var_name='channel', value_name='l0_rate_max', search_previous = not update)
+                                                        date_time=min_filtered_date, value_field='avg', id_var='date', var_name='channel', value_name='l0_rate_max', search_previous = False)
 
     # TIB rates data
-    tib_busy_rate_data = database.get_scalar_data_by_date(collection=tib_min_collection, property_name='TIB_Rates_BUSYRate', date_time=date_filter, value_field='avg', id_var='date', var_name='TIB Rate Busy', value_name='tib_busy_rate', search_previous = not update)
-    tib_calibration_rate_data = database.get_scalar_data_by_date(collection=tib_min_collection, property_name='TIB_Rates_CalibrationRate', date_time=date_filter, value_field='avg', id_var='date', var_name='TIB Rate Calibration', value_name='calibration_rate', search_previous = not update)
-    tib_camera_rate_data = database.get_scalar_data_by_date(collection=tib_min_collection, property_name='TIB_Rates_CameraRate', date_time=date_filter, value_field='avg', id_var='date', var_name='TIB Rate Camera', value_name='camera_rate', search_previous = not update)
-    tib_local_rate_data = database.get_scalar_data_by_date(collection=tib_min_collection, property_name='TIB_Rates_LocalRate', date_time=date_filter, value_field='avg', id_var='date', var_name='TIB Rate Local', value_name='local_rate', search_previous = not update)
-    tib_pedestal_rate_data = database.get_scalar_data_by_date(collection=tib_min_collection, property_name='TIB_Rates_PedestalRate', date_time=date_filter, value_field='avg', id_var='date', var_name='TIB Rate Pedestal', value_name='pedestal_rate', search_previous = not update)
+    tib_busy_rate_data = database.get_scalar_data_by_date(collection=tib_min_collection, property_name='TIB_Rates_BUSYRate', date_time=min_filtered_date, value_field='avg', id_var='date', var_name='TIB Rate Busy', value_name='tib_busy_rate', search_previous = False)
+    tib_calibration_rate_data = database.get_scalar_data_by_date(collection=tib_min_collection, property_name='TIB_Rates_CalibrationRate', date_time=min_filtered_date, value_field='avg', id_var='date', var_name='TIB Rate Calibration', value_name='calibration_rate', search_previous = False)
+    tib_camera_rate_data = database.get_scalar_data_by_date(collection=tib_min_collection, property_name='TIB_Rates_CameraRate', date_time=min_filtered_date, value_field='avg', id_var='date', var_name='TIB Rate Camera', value_name='camera_rate', search_previous = False)
+    tib_local_rate_data = database.get_scalar_data_by_date(collection=tib_min_collection, property_name='TIB_Rates_LocalRate', date_time=min_filtered_date, value_field='avg', id_var='date', var_name='TIB Rate Local', value_name='local_rate', search_previous = False)
+    tib_pedestal_rate_data = database.get_scalar_data_by_date(collection=tib_min_collection, property_name='TIB_Rates_PedestalRate', date_time=min_filtered_date, value_field='avg', id_var='date', var_name='TIB Rate Pedestal', value_name='pedestal_rate', search_previous = False)
     
     # Merges all tib dataframe in a single one with all the rates in columns
     if tib_busy_rate_data.empty is False:
@@ -308,8 +317,7 @@ def create_dashboard(template, date_filter=dt.date.today(), update=False):
         tib_rates_data = pd.DataFrame()
     
     # Dragon Busy
-    dragon_busy_data = database.get_data_by_date(collection=clusco_min_collection, property_name='dragon_busy', date_time=date_filter, value_field='avg', id_var='date', var_name='module', value_name='busy_status', search_previous = not update)
-    print(dragon_busy_data)
+    dragon_busy_data = database.get_data_by_date(collection=clusco_min_collection, property_name='dragon_busy', date_time=min_filtered_date, value_field='avg', id_var='date', var_name='module', value_name='busy_status', search_previous = False)
 
     # close mongodb connection
     db.client.close()
@@ -317,66 +325,49 @@ def create_dashboard(template, date_filter=dt.date.today(), update=False):
     if update is False:
         dashboard_utils.update_loading_message(template, '''<h1 style="text-align:center">Making plots...</h1>''')
 
-
-    # We need to get all the dates from the collected data, since some of them could be comming from previous days
-    #  and we are anotatting title plots with the date...
-    # TODO: Get rid of this and shows an empty plot if the data is empty...
-    data_min_date_dict = {
-        'pacta_temperature': get_min_date_from_df(pacta_temperature_data),
-        'scb_temperature': get_min_date_from_df(scb_temperature_data),
-        'scb_humidity': get_min_date_from_df(scb_humidity_data),
-        'scb_anode_current': get_min_date_from_df(scb_anode_current_data),
-        'hv': get_min_date_from_df(hv_data),
-        'scb_backplane_temperature': get_min_date_from_df(scb_backplane_temperature_data),
-        'l1_rate': get_min_date_from_df(l1_rate_data),
-        'l0_pixel_ipr_data': get_min_date_from_df(l0_pixel_ipr_data),
-        'tib_rates': get_min_date_from_df(tib_rates_data),
-        'dragon_busy': get_min_date_from_df(dragon_busy_data)
-    }   
-
     if update is False:
-        min_date_from_data = min([x for x in data_min_date_dict.values() if x is not None])
+        # min_date_from_data = min([x for x in data_min_date_dict.values() if x is not None])
 
         date_picker = pn.widgets.DatePicker(
-            name='Date Selection', value=min_date_from_data, end=dt.date.today())
+            name='Date Selection', value=min_filtered_date, end=dt.date.today())
 
     print("\nMaking plots...")
 
     # # # # # # # # # # # # #
     # First dashboard tab  #
     # # # # # # # # # # # # #
-    pacta_temp_title = 'PACTA Temperature ' + '(' + str(data_min_date_dict['pacta_temperature']) + ')'
+    pacta_temp_title = 'PACTA Temperature ' + '(' + str(min_filtered_date) + ')'
     pacta_temp_plot_panel =  create_plot_panel(pacta_temperature_data, pacta_temp_title, 'date', 'channel', 'temperature', 'Time (UTC)', 'Temperature (ºC)', cmap_temps, (0, 30), template, not update) 
 
     if update:
         template.main[0][0][0][0, 0] = pacta_temp_plot_panel
 
-    scb_temp_title = 'SCB Temperature ' + '(' + str(data_min_date_dict['scb_temperature']) + ')'
+    scb_temp_title = 'SCB Temperature ' + '(' + str(min_filtered_date) + ')'
     scb_temp_plot_panel = create_plot_panel(scb_temperature_data, scb_temp_title, 'date', 'module', 'temperature', 'Time (UTC)', 'Temperature (ºC)', cmap_temps, (0, 30), template, not update)
 
     if update:
         template.main[0][0][0][0, 1] = scb_temp_plot_panel
 
-    scb_humidity_title = 'SCB Humidity ' + '(' + str(data_min_date_dict['scb_humidity']) + ')'
+    scb_humidity_title = 'SCB Humidity ' + '(' + str(min_filtered_date) + ')'
     scb_humidity_plot_panel = create_plot_panel(scb_humidity_data, scb_humidity_title, 'date', 'module', 'humidity', 'Time (UTC)', 'Humidity (%)', cmap_humidty, (0, 80), template, not update)
 
     if update:
         template.main[0][0][0][0, 2] = scb_humidity_plot_panel
     
-    scb_anode_title = 'SCB Anode Current ' + '(' + str(data_min_date_dict['scb_anode_current']) + ')'
+    scb_anode_title = 'SCB Anode Current ' + '(' + str(min_filtered_date) + ')'
     scb_anode_current_plot_panel = create_plot_panel(scb_anode_current_data, scb_anode_title, 'date', 'channel', 'anode', 'Time (UTC)', 'Anode Current (µA)', cmap_anode, (0, 100), template, not update)
 
     if update:
         template.main[0][0][0][1, 0] = scb_anode_current_plot_panel
 
-    hv_title = 'High Voltage ' + '(' + str(data_min_date_dict['hv']) + ')'
+    hv_title = 'High Voltage ' + '(' + str(min_filtered_date) + ')'
     hv_plot_panel = create_plot_panel(hv_data, hv_title, 'date', 'channel', 'hv', 'Date', 'HV (V)', cmap_hv, (10, 1400), template, not update)
     
     if update:
         template.main[0][0][0][1, 1] = hv_plot_panel
     
     
-    scb_backplane_temp_title = 'SCB Backplane Temperature ' + '(' + str(data_min_date_dict['scb_backplane_temperature']) + ')'
+    scb_backplane_temp_title = 'SCB Backplane Temperature ' + '(' + str(min_filtered_date) + ')'
     scb_backplane_temp_plot_panel = create_plot_panel(scb_backplane_temperature_data, scb_backplane_temp_title, 'date', 'module', 'temperature', 'Time (UTC)', 'Temperature (ºC)', cmap_backplane_temp, (0, 37), template, not update)
 
     if update:
@@ -387,20 +378,20 @@ def create_dashboard(template, date_filter=dt.date.today(), update=False):
     # Second dashboard tab  #
     # # # # # # # # # # # # #
 
-    l1_rate_title = 'L1 Rate ' + '(' + str(data_min_date_dict['l1_rate']) + ')'
+    l1_rate_title = 'L1 Rate ' + '(' + str(min_filtered_date) + ')'
     l1_rate_plot_panel = create_l1_rate_plot_panel([l1_rate_data, l0_rate_control_data, l1_rate_control_data, l1_rate_max_data, l1_rate_target_data],
                 l1_rate_title, 'date', 'module', 'l1_rate', 'Time (UTC)', 'L1 Rate (Hz)', cmap_temps, (0, 1000), template, not update)
 
     if update:
         template.main[0][0][1][0, 0] = l1_rate_plot_panel
 
-    l0_pixel_ipr_title = 'L0 Pixel IPR ' + '(' + str(data_min_date_dict['l0_pixel_ipr_data']) + ')'
+    l0_pixel_ipr_title = 'L0 Pixel IPR ' + '(' + str(min_filtered_date) + ')'
     l0_pixel_ipr_panel = create_l0_ipr_plot_panel([l0_pixel_ipr_data, l0_rate_max_data], l0_pixel_ipr_title, 'date', 'channel', 'l0_pixel_ipr', 'Time (UTC)', 'L0 Pixel IPR (Hz)', cmap_temps, (0, 1000), template, not update)
 
     if update:
         template.main[0][0][1][0, 1] = l0_pixel_ipr_panel
 
-    tib_rates_title = 'TIB Rates ' + '(' + str(data_min_date_dict['tib_rates']) + ')'
+    tib_rates_title = 'TIB Rates ' + '(' + str(min_filtered_date) + ')'
     tib_rates_panel = create_tib_rates_plot_panel(tib_rates_data, tib_rates_title, 'Time (UTC)', 'TIB Rates (Hz)', template, not update)
 
     if update:
@@ -410,7 +401,7 @@ def create_dashboard(template, date_filter=dt.date.today(), update=False):
     # Third dashboard tab   #
     # # # # # # # # # # # # #
 
-    dragon_busy_title = 'Dragon Busy ' + '(' + str(data_min_date_dict['dragon_busy']) + ')'
+    dragon_busy_title = 'Dragon Busy ' + '(' + str(min_filtered_date) + ')'
     dragon_busy_panel = create_dragon_busy_plot_panel(dragon_busy_data, dragon_busy_title, 'Time (UTC)', 'Module ID', template, not update)
 
     if update:
