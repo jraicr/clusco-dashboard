@@ -80,9 +80,9 @@ def restart_server_if_empty_task(interval_sec=60):
     while True:
         time.sleep(interval_sec)
         
-        print('Checking if server is empty to perform restart...')
+        #print('Checking if server is empty to perform restart...')
         if pn.state.session_info['live'] == 0:
-            print("Restarting server...")
+            print("Restarting server to clean up resources, as there are 0 active sessions. ")
             #os.execv(sys.executable, ['python -u'] + sys.argv + ['>> output.log'])
             os.execv(sys.executable, ['python'] + sys.argv)
         
@@ -468,7 +468,7 @@ def destroyed(session_context):
     gc.collect()
     
     if  not restart_server_thread_task.is_alive():
-        print("Starting restart server thread...")
+        print("Starting application restart checker in another thread")
         restart_server_thread_task.start()
 
 
