@@ -187,7 +187,7 @@ def multiplot_grouped_data(data, x, y, title, xlabel, ylabel, groupby, cmap_cust
     # Create a composite plot with all the plots merged
     composite_plot = lines_plot * single_channel_scatter_plot  * max_line_plot * all_channels_scatter_plot
 
-    return composite_plot.opts(legend_position='top', responsive=True, min_height=500, hooks=[disable_logo], show_grid=True)
+    return composite_plot.opts(legend_position='top', responsive=True, min_height=500, hooks=[disable_logo], show_grid=True, legend_opts={"click_policy": "hide"},)
 
 
 
@@ -265,7 +265,7 @@ def plot_l1_rate_data(data_list, x, y, title, xlabel, ylabel, groupby, cmap_cust
     # Create a composite plot with all the plots merged
     composite_plot = lines_plot * single_channel_scatter_plot  * max_line_plot * all_channels_scatter_plot *  l1_r_control_plot * l0_r_control_plot * l1_rate_max_plot * l1_rate_target_plot
 
-    return composite_plot.opts(legend_position='top', responsive=True, min_height=500, hooks=[disable_logo], show_grid=True)
+    return composite_plot.opts(legend_position='top', responsive=True, min_height=500, hooks=[disable_logo], show_grid=True, legend_opts={"click_policy": "hide"},)
 
 
 def plot_l0_ipr_data(data_list, x, y, title, xlabel, ylabel, groupby, cmap_custom, clim):
@@ -314,7 +314,7 @@ def plot_l0_ipr_data(data_list, x, y, title, xlabel, ylabel, groupby, cmap_custo
     else:
         composite_plot = lines_plot * single_channel_scatter_plot  * max_line_plot * all_channels_scatter_plot
     
-    return composite_plot.opts(legend_position='top', responsive=True, min_height=500, hooks=[disable_logo], show_grid=True)
+    return composite_plot.opts(legend_position='top', responsive=True, min_height=500, hooks=[disable_logo], show_grid=True, legend_opts={"click_policy": "hide"})
 
 
 def plot_tib_rate_data(data, title, xlabel, ylabel):
@@ -331,7 +331,7 @@ def plot_tib_rate_data(data, title, xlabel, ylabel):
     tib_pedestal_rate_plot = tib_pedestal_rate_data.hvplot.line(x='date', y=tib_pedestal_rate_data, title=title, grid=True, responsive=True, min_height=400, label='pedestal', legend='top', muted_alpha=0, yformatter='%.0f')
 
     rates_plot = tib_busy_rate_plot * tib_calibration_rate_plot * tib_camera_rate_plot * tib_local_rate_plot * tib_pedestal_rate_plot
-    return rates_plot.opts(legend_position='top', xlabel=xlabel, ylabel=ylabel, hooks=[disable_logo], show_grid=True, responsive=True, min_height=500)
+    return rates_plot.opts(legend_position='top', xlabel=xlabel, ylabel=ylabel, hooks=[disable_logo], show_grid=True, responsive=True, min_height=500, legend_opts={"click_policy": "hide"})
 
 
 def plot_dragon_busy_data(data, title, xlabel, ylabel):
