@@ -295,23 +295,25 @@ def plot_l0_ipr_data(data_list, x, y, title, xlabel, ylabel, groupby, cmap_custo
     all_channels_scatter_plot = hvplot_df_scatter(data, x=x, y=y, title=title, color=y, cmap=cmap_custom,  size=20, marker='o', dic_opts={
                                                   'padding': 0.1, 'tools': [''], 'xlabel': xlabel, 'alpha': 0.15, 'ylabel': ylabel, 'clim': clim,}, rasterize=True, dynamic=False)
 
-    
-
-    # L0 RATE MAX
-    # Select max value from L0 Rate Max dataframe
-    l0_rate_max = l0_rate_max_data['l0_rate_max'].max()
-
     data = data.reset_index()
     min_date = data['date'].min()
     max_date = data['date'].max()
 
     orange_color = '#FF7F0E'
-    l0_rate_max_plot = hv.Curve([(min_date, l0_rate_max), (max_date, l0_rate_max)], label='L0 Rate Max').opts(line_color=orange_color, line_width=2, muted_alpha=0)
 
+    if (l0_rate_max_data.empty is False):
+        # L0 RATE MAX
+        # Select max value from L0 Rate Max dataframe
+        l0_rate_max = l0_rate_max_data['l0_rate_max'].max()
 
-    # Create a composite plot with all the plots merged
-    composite_plot = lines_plot * single_channel_scatter_plot  * max_line_plot * all_channels_scatter_plot * l0_rate_max_plot
+        l0_rate_max_plot = hv.Curve([(min_date, l0_rate_max), (max_date, l0_rate_max)], label='L0 Rate Max').opts(line_color=orange_color, line_width=2, muted_alpha=0)
 
+        # Create a composite plot with all the plots merged
+        composite_plot = lines_plot * single_channel_scatter_plot  * max_line_plot * all_channels_scatter_plot * l0_rate_max_plot
+    
+    else:
+        composite_plot = lines_plot * single_channel_scatter_plot  * max_line_plot * all_channels_scatter_plot
+    
     return composite_plot.opts(legend_position='top', responsive=True, min_height=500, hooks=[disable_logo], show_grid=True)
 
 
@@ -321,8 +323,6 @@ def plot_tib_rate_data(data, title, xlabel, ylabel):
     tib_camera_rate_data = data[2]
     tib_local_rate_data = data[3]
     tib_pedestal_rate_data = data[4]
-
-    print(tib_busy_rate_data)
     
     tib_busy_rate_plot = tib_busy_rate_data.hvplot.line(x='date', y=tib_busy_rate_data, title=title, grid=True, responsive=True, min_height=400, legend='top', label='busy', muted_alpha=0, yformatter='%.0f')
     tib_calibration_rate_plot = tib_calibration_rate_data.hvplot.line(x='date', y=tib_calibration_rate_data, title=title, grid=True, responsive=True, min_height=400, label='calibration', legend='top', muted_alpha=0, yformatter='%.0f')
