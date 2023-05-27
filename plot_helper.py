@@ -1,9 +1,26 @@
+"""
+Holoviz plots management module
+"""
+
 import pandas as pd
 import holoviews as hv # noqa
 
-def hvplot_df_line(df:pd.DataFrame, x, y, title:str, dic_opts:dict, color:str='green'):
+
+def hvplot_df_line(df:pd.DataFrame, x:str, y:str, title:str, dic_opts:dict, color:str='green'):
     """
-    Plots a pandas dataframe line plot.
+    Plots a line graph - using hvPlot - from a pandas dataframe.
+
+    Parameters
+    ----------
+    - `df` (pandas.DataFrame): The dataframe to plot.
+    - `x` (str): The name of the column to use as x axis.
+    - `y` (str): The name of the column to use as y axis.
+    - `title` (str): The title of the plot.
+    - `dic_opts` (dict): A dictionary with the options to pass to the plot created with hvPlot. See more at <https://hvplot.holoviz.org/user_guide/Customization.html>
+
+    Returns
+    ----------
+    - `dynamic_map` (holoviews.core.spaces.DynamicMap): The holoviews Dynamic map created with hvPlot.
     """
     print(df.head())
     dynamic_map = df.hvplot.line(x=x, y=y, title=title, color=color, hover_cols='all',
@@ -18,7 +35,21 @@ def hvplot_df_line(df:pd.DataFrame, x, y, title:str, dic_opts:dict, color:str='g
 
 def hvplot_df_grouped_line(df:pd.DataFrame, x, y, title:str, dic_opts:dict, groupby:str, color:str='green'):
     """
-    Plots a pandas dataframe line plot.
+    Plots a line graph - using hvPlot - from a pandas dataframe grouping by a column in the dataframe. hvPlot will create a widget to select the group to plot.
+
+    Parameters
+    ----------
+    - `df` (pandas.DataFrame): The dataframe to plot.
+    - `x` (str): The name of the column to use as x axis.
+    - `y` (str): The name of the column to use as y axis.
+    - `title` (str): The title of the plot.
+    - `dic_opts` (dict): A dictionary with the options to pass to the plot created with hvPlot. See more at <https://hvplot.holoviz.org/user_guide/Customization.html>
+    - `groupby` (str): The name of the column to use to group the dataframe.
+    - `color` (str): The color of the line.
+
+    Returns
+    ----------
+    - `dynamic_map` (holoviews.core.spaces.DynamicMap): A DynamicMap instance from Holoviews created with hvPlot. See more at <https://holoviews.org/reference/containers/plotly/DynamicMap.html>
     """
     
     dynamic_map = df.hvplot.line(x=x, y=y, title=title, color=color, groupby=groupby, hover_cols='all',
@@ -31,13 +62,23 @@ def hvplot_df_grouped_line(df:pd.DataFrame, x, y, title:str, dic_opts:dict, grou
 
 
 
-def hvplot_df_max_min_avg_line(df, x, y, title, dic_opts, category):
-    """_summary_
-    Plots a pandas dataframe line plot with max, min and average columns in df.
+def hvplot_df_max_min_avg_line(df, x, title, dic_opts, category):
     """
+     
+    Plots lines graphs - using hvPlot, from a pandas dataframe with max, min and avg columns
 
-    # dynamic_map = df.hvplot.line(x=x, y=['max', 'min', 'mean'], title=title,
-    #                              responsive=True, min_height=400, hover_cols=[x,y, 'max_' + category, 'min_' + category])
+    Parameters
+    ----------
+    - `df` (pandas.DataFrame): The dataframe to plot with max, min and avg columns.
+    - `x` (str): The name of the column to use as x axis.
+    - `title` (str): The title of the plot.
+    - `dic_opts` (dict): A dictionary with the options to pass to the plot created with hvPlot. See more at <https://hvplot.holoviz.org/user_guide/Customization.html>
+    - `category` (str): The name of the variable to plot (channel, module...)
+
+    Returns
+    ----------
+    - `composite_plots` (holoviews.core.overlay.Overlay): The composite plots created with hvPlot.
+    """
     
     max_line = df.hvplot.line(x=x, y='max', title=title, responsive=True, min_height=400, hover_cols=['x', 'y', 'max_' + category], label='max', color='red').opts(alpha=1, muted_alpha=0)
         
@@ -47,12 +88,11 @@ def hvplot_df_max_min_avg_line(df, x, y, title, dic_opts, category):
     
     options = list(dic_opts.items())
     
-    dynamic_map = max_line * mean_line * min_line
-    dynamic_map.opts(**dict(options))
-    dynamic_map
-    
+    composite_plots = max_line * mean_line * min_line
+    composite_plots.opts(**dict(options))
+    composite_plots
 
-    return dynamic_map
+    return composite_plots
 
 
 
@@ -160,6 +200,15 @@ def disable_logo(plot, element):
     """
     plot.state.toolbar.logo = None
 
+def reset_y_hook(plot, elem):
+    bkplot = plot.handles['plot']
+    ydata = elem.dataset.data[elem.dataset.vdims[0].name]
+    y_range = ydata.min(), ydata.max()
+    old_y_range_reset = bkplot.y_range.reset_start, bkplot.y_range.reset_end
+
+    if old_y_range_reset != y_range:
+        bkplot.y_range.start, bkplot.y_range.end = y_range
+        bkplot.y_range.reset_start, bkplot.y_range.reset_end = y_range
 
 def multiplot_grouped_data(data, x, y, title, xlabel, ylabel, groupby, cmap_custom, clim):
 
@@ -169,7 +218,7 @@ def multiplot_grouped_data(data, x, y, title, xlabel, ylabel, groupby, cmap_cust
     # Just for debugging purposes: Check if we have duplicated indexes (dates) in the dataframe
     # print(df_with_min_max_avg[df_with_min_max_avg.index.duplicated(keep=False)])
 
-    max_line_plot = hvplot_df_max_min_avg_line(df_with_min_max_avg, x=x, y=y, title=title, dic_opts={
+    max_line_plot = hvplot_df_max_min_avg_line(df_with_min_max_avg, x=x, title=title, dic_opts={
         'padding': 0.1, 'tools': ['hover'], 'xlabel': xlabel, 'ylabel': ylabel, 'axiswise': True, 'show_legend': True}, category=groupby)
     
     # Plot lines grouped by channel from data (channel is selected by widget and just one channel is shown at a time)
@@ -205,7 +254,7 @@ def plot_l1_rate_data(data_list, x, y, title, xlabel, ylabel, groupby, cmap_cust
     # Just for debugging purposes: Check if we have duplicated indexes (dates) in the dataframe
     # print(df_with_min_max_avg[df_with_min_max_avg.index.duplicated(keep=False)])
 
-    max_line_plot = hvplot_df_max_min_avg_line(df_with_min_max_avg, x=x, y=y, title=title, dic_opts={
+    max_line_plot = hvplot_df_max_min_avg_line(df_with_min_max_avg, x=x, title=title, dic_opts={
         'padding': 0.1, 'tools': ['hover'], 'xlabel': xlabel, 'ylabel': ylabel, 'axiswise': True, 'show_legend': True, 'responsive': True, 'min_height':400}, category=groupby)
     
     # Plot lines grouped by channel from data (channel is selected by widget and just one channel is shown at a time)
@@ -279,7 +328,7 @@ def plot_l0_ipr_data(data_list, x, y, title, xlabel, ylabel, groupby, cmap_custo
     # Just for debugging purposes: Check if we have duplicated indexes (dates) in the dataframe
     # print(df_with_min_max_avg[df_with_min_max_avg.index.duplicated(keep=False)])
 
-    max_line_plot = hvplot_df_max_min_avg_line(df_with_min_max_avg, x=x, y=y, title=title, dic_opts={
+    max_line_plot = hvplot_df_max_min_avg_line(df_with_min_max_avg, x=x, title=title, dic_opts={
         'padding': 0.1, 'tools': ['hover'], 'xlabel': xlabel, 'ylabel': ylabel, 'axiswise': True, 'show_legend': True}, category=groupby)
     
     # Plot lines grouped by channel from data (channel is selected by widget and just one channel is shown at a time)
