@@ -272,30 +272,30 @@ def create_dashboard(template, date_filter=dt.date.today(), update=False):
                                             date_time=min_filtered_date, value_field='avg', id_var='date', var_name='module', value_name='l1_rate', search_previous = False)
     
     l1_rate_control_data = database.get_scalar_data_by_date(collection=clusco_min_collection, property_name='clusco_l1_rate_control',
-                                            date_time=min_filtered_date, value_field='avg', id_var='date', var_name='module', value_name='l1_rate_control', search_previous = False, remove_zero_values=True)
+                                            date_time=min_filtered_date, value_field='avg', value_name='l1_rate_control', search_previous = False, remove_zero_values=True)
 
     l0_rate_control_data = database.get_scalar_data_by_date(collection=clusco_min_collection, property_name='clusco_l0_rate_control',
-                                            date_time=min_filtered_date, value_field='avg', id_var='date', var_name='module', value_name='l0_rate_control', search_previous = False, remove_zero_values=True)
+                                            date_time=min_filtered_date, value_field='avg', value_name='l0_rate_control', search_previous = False, remove_zero_values=True)
     
     l1_rate_max_data = database.get_scalar_data_by_date(collection=clusco_min_collection, property_name='clusco_l1_rate_max',
-                                            date_time=min_filtered_date, value_field='avg', id_var='date', var_name='module', value_name='l1_rate_max', search_previous = False)
+                                            date_time=min_filtered_date, value_field='avg', value_name='l1_rate_max', search_previous = False)
     
     l1_rate_target_data = database.get_scalar_data_by_date(collection=clusco_min_collection, property_name='clusco_l1_rate_target',
-                                                           date_time=min_filtered_date, value_field='avg', id_var='date', var_name='module', value_name='l1_rate_target', search_previous = False)
+                                                           date_time=min_filtered_date, value_field='avg', value_name='l1_rate_target', search_previous = False)
 
     # L0 Pixel Ipr Data
     l0_pixel_ipr_data = database.get_data_by_date(collection=clusco_min_collection, property_name='l0_pixel_ipr',
                                                    date_time=min_filtered_date, value_field='avg', id_var='date', var_name='channel', value_name='l0_pixel_ipr', search_previous = False)
-    
+    # L0 Rate max data
     l0_rate_max_data = database.get_scalar_data_by_date(collection=clusco_min_collection, property_name='clusco_l0_rate_max', 
-                                                        date_time=min_filtered_date, value_field='avg', id_var='date', var_name='channel', value_name='l0_rate_max', search_previous = False)
+                                                        date_time=min_filtered_date, value_field='avg', value_name='l0_rate_max', search_previous = False)
 
     # TIB rates data
-    tib_busy_rate_data = database.get_scalar_data_by_date(collection=tib_min_collection, property_name='TIB_Rates_BUSYRate', date_time=min_filtered_date, value_field='avg', id_var='date', var_name='TIB Rate Busy', value_name='tib_busy_rate', search_previous = False)
-    tib_calibration_rate_data = database.get_scalar_data_by_date(collection=tib_min_collection, property_name='TIB_Rates_CalibrationRate', date_time=min_filtered_date, value_field='avg', id_var='date', var_name='TIB Rate Calibration', value_name='calibration_rate', search_previous = False)
-    tib_camera_rate_data = database.get_scalar_data_by_date(collection=tib_min_collection, property_name='TIB_Rates_CameraRate', date_time=min_filtered_date, value_field='avg', id_var='date', var_name='TIB Rate Camera', value_name='camera_rate', search_previous = False)
-    tib_local_rate_data = database.get_scalar_data_by_date(collection=tib_min_collection, property_name='TIB_Rates_LocalRate', date_time=min_filtered_date, value_field='avg', id_var='date', var_name='TIB Rate Local', value_name='local_rate', search_previous = False)
-    tib_pedestal_rate_data = database.get_scalar_data_by_date(collection=tib_min_collection, property_name='TIB_Rates_PedestalRate', date_time=min_filtered_date, value_field='avg', id_var='date', var_name='TIB Rate Pedestal', value_name='pedestal_rate', search_previous = False)
+    tib_busy_rate_data = database.get_scalar_data_by_date(collection=tib_min_collection, property_name='TIB_Rates_BUSYRate', date_time=min_filtered_date, value_field='avg', value_name='tib_busy_rate', search_previous = False)
+    tib_calibration_rate_data = database.get_scalar_data_by_date(collection=tib_min_collection, property_name='TIB_Rates_CalibrationRate', date_time=min_filtered_date, value_field='avg', value_name='calibration_rate', search_previous = False)
+    tib_camera_rate_data = database.get_scalar_data_by_date(collection=tib_min_collection, property_name='TIB_Rates_CameraRate', date_time=min_filtered_date, value_field='avg', value_name='camera_rate', search_previous = False)
+    tib_local_rate_data = database.get_scalar_data_by_date(collection=tib_min_collection, property_name='TIB_Rates_LocalRate', date_time=min_filtered_date, value_field='avg', value_name='local_rate', search_previous = False)
+    tib_pedestal_rate_data = database.get_scalar_data_by_date(collection=tib_min_collection, property_name='TIB_Rates_PedestalRate', date_time=min_filtered_date, value_field='avg', value_name='pedestal_rate', search_previous = False)
     
     # Dragon Busy
     dragon_busy_data = database.get_data_by_date(collection=clusco_min_collection, property_name='dragon_busy', date_time=min_filtered_date, value_field='max', id_var='date', var_name='module', value_name='busy_status', search_previous = False)
@@ -454,7 +454,7 @@ def create_dashboard(template, date_filter=dt.date.today(), update=False):
                     # set param loading indicator param in panel to True
                     panel[0].loading = True        
 
-            # Create thread to run update_dashboard and pass template and date_picker as arguments
+            # Create thread to update the dashboard
             t = threading.Thread(target=create_dashboard, args=(template, date_picker, True))
             t.daemon = False
             t.start()
@@ -531,4 +531,4 @@ if __name__ == '__main__':
     WEBSOCKET_ORIGIN = os.environ.get('WEBSOCKET_ORIGIN')
 
     pn.serve(get_user_dashboard, address='127.0.0.1', port=port, websocket_origin=WEBSOCKET_ORIGIN, show=False, static_dirs={'images': './images'}, admin=True, title='Clusco Reports',
-             threaded=True, n_threads=4, check_unused_sessions_milliseconds=5000, unused_session_lifetime=5000)
+             threaded=True, n_threads=4)
