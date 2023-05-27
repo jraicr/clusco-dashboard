@@ -87,13 +87,13 @@ When a user gets into the application the app will start to query the database f
 
 As the Python application may be used by multiple users simultaneously, it may not always fully clear the Bokeh sessions when a user leaves the application. To address this, there is a functionality that checks every minute if there are any active sessions left once a user leaves the application by closing the browser page. If there are no active sessions, the application will restart, freeing all memory resources that were reserved for the application at the time of dashboard creation.
 
-### 3.1 Observations about date selection
+### 3.1. Observations about date selection
 Please note that when selecting a date, the graphs will display data from 12:00 pm on the selected day until 12:00 pm the following day. If you wish to view data from before 12:00 pm on the selected day, you should select the previous day.
 
-## 3.2 Admin Panel
+### 3.2. Admin Panel
 There is available an admin panel to see some data about the application such as the active sessions and how much memory is being used by the application, among others parameters offered by [Panel](https://panel.holoviz.org/how_to/profiling/admin.html) from ```HoloViz```. To access this admin dashboard just enter the address ```/admin``` after the address of the application. For example, if the application is running locally, the address would be ```localhost:5006/admin```.
 
-## 4 Available plots
+## 4. Available plots
 The following plots are available in the dashboard:
 
 
