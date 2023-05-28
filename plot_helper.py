@@ -1,7 +1,6 @@
 """
 HoloViz plots management module
 """
-
 import pandas as pd
 import holoviews as hv # noqa
 
@@ -23,7 +22,6 @@ def hvplot_df_line(df:pd.DataFrame, x:str, y:str, title:str, dic_opts:dict, colo
     ----------
     - `dynamic_map` (holoviews.core.spaces.DynamicMap): The holoviews Dynamic map created with hvPlot.
     """
-    print(df.head())
     dynamic_map = df.hvplot.line(x=x, y=y, title=title, color=color, hover_cols='all',
                                  responsive=True, min_height=400, muted_alpha=0)
 
@@ -260,16 +258,6 @@ def disable_logo(plot, element):
     """
     plot.state.toolbar.logo = None
 
-def reset_y_hook(plot, elem):
-    bkplot = plot.handles['plot']
-    ydata = elem.dataset.data[elem.dataset.vdims[0].name]
-    y_range = ydata.min(), ydata.max()
-    old_y_range_reset = bkplot.y_range.reset_start, bkplot.y_range.reset_end
-
-    if old_y_range_reset != y_range:
-        bkplot.y_range.start, bkplot.y_range.end = y_range
-        bkplot.y_range.reset_start, bkplot.y_range.reset_end = y_range
-
 def multiplot_grouped_data(data, x, y, title, xlabel, ylabel, groupby, cmap_custom, clim):
     """
     Composite Plot with:
@@ -360,10 +348,10 @@ def plot_l1_rate_data(data_dict, x, y, title, xlabel, ylabel, groupby, cmap_cust
 
     """
     l1_rate_data = data_dict['l1_rate']
-    l1_rate_control = data_dict['l1_rate_control']
+    l1_rate_control_data = data_dict['l1_rate_control']
     l1_rate_max_data = data_dict['l1_rate_max']
     l1_rate_target_data = data_dict['l1_rate_target']
-    l0_rate_control = data_dict['l0_rate_control']
+    l0_rate_control_data = data_dict['l0_rate_control']
 
     # Build a pandas dataframe from the original dataframe and select the min and max values for each date
     df_with_min_max_avg = build_min_max_avg(l1_rate_data, x, y, groupby)
@@ -387,48 +375,61 @@ def plot_l1_rate_data(data_dict, x, y, title, xlabel, ylabel, groupby, cmap_cust
     all_channels_scatter_plot = hvplot_df_scatter(l1_rate_data, x=x, y=y, title=title, color=y, cmap=cmap_custom,  size=20, marker='o', dic_opts={
                                                   'padding': 0.1, 'tools': [''], 'xlabel': xlabel, 'alpha': 0.15, 'ylabel': ylabel, 'clim': clim, 'responsive': True, 'min_height':400}, rasterize=True, dynamic=False)
 
+
+    # Create a composite plot with all the plots merged
+    composite_plot = lines_plot * single_channel_scatter_plot  * max_line_plot * all_channels_scatter_plot
+
     # L0 RATE CONTROL
-    # Reset index of L0 Rate Control dataframe to be able to plot it
-    l0_rate_control = l0_rate_control.reset_index()
+    if l0_rate_control_data.empty is False:
+        # Reset index of L0 Rate Control dataframe to be able to plot it
+        l0_rate_control_data = l0_rate_control_data.reset_index()
    
-    # Creates SPikes plot from L0 Rate Control dataframe
-    max_value = df_with_min_max_avg['max'].max()
-    l0_rate_control_plot = hv.Spikes(l0_rate_control.date, label='L0 Rate Control').opts(alpha=1, spike_length=max_value, line_width=2, line_color='orange', muted_alpha=0)
+        # Creates SPikes plot from L0 Rate Control dataframe
+        max_value = df_with_min_max_avg['max'].max()
+        l0_rate_control_plot = hv.Spikes(l0_rate_control_data.date, label='L0 Rate Control').opts(alpha=1, spike_length=max_value, line_width=2, line_color='orange', muted_alpha=0)
+
+        composite_plot = composite_plot * l0_rate_control_plot
 
     # L1 RATE CONTROL
-    l1_rate_control = l1_rate_control.reset_index()
-    l1_rate_control_plot = hv.Spikes(l1_rate_control.date, label='L1 Rate Control').opts(alpha=1, spike_length=max_value, line_width=2, line_color='green', muted_alpha=0)
+    if l1_rate_control_data.empty is False:
+        l1_rate_control_data = l1_rate_control_data.reset_index()
+        l1_rate_control_plot = hv.Spikes(l1_rate_control_data.date, label='L1 Rate Control').opts(alpha=1, spike_length=max_value, line_width=2, line_color='green', muted_alpha=0)
+
+        composite_plot = composite_plot * l1_rate_control_plot
 
     # L1 RATE MAX
-    # Select max value from L1 Rate Max dataframe
-    l1_rate_max = l1_rate_max_data['l1_rate_max'].max()
+    if l1_rate_max_data.empty is False:
+        # Select max value from L1 Rate Max dataframe
+        l1_rate_max = l1_rate_max_data['l1_rate_max'].max()
 
-    # Plot an horizontal blue dashed line with the max value
-    #l1_rate_max_plot = hv.HLine(l1_rate_max, label='L1 Rate Max').opts(line_dash='dashed', line_width=1, line_color='red', muted_alpha=0)
-    
-    l1_rate_data = l1_rate_data.reset_index()
-    min_date = l1_rate_data['date'].min()
-    max_date = l1_rate_data['date'].max()
-    inf_sim_min_date = l1_rate_data['date'].min() - pd.Timedelta(days=360)
-    inf_sim_max_date = l1_rate_data['date'].max() + pd.Timedelta(days=360)
-    
-    orange_color = '#FF7F0E'
-    l1_rate_max_plot = hv.Curve([(inf_sim_min_date, l1_rate_max), (inf_sim_max_date, l1_rate_max)], label='L1 Rate Max').opts(line_color=orange_color, line_width=2, muted_alpha=0, xlim=(min_date - pd.Timedelta(hours=1), max_date + pd.Timedelta(hours=1)))
+        # Plot an horizontal blue dashed line with the max value
+        #l1_rate_max_plot = hv.HLine(l1_rate_max, label='L1 Rate Max').opts(line_dash='dashed', line_width=1, line_color='red', muted_alpha=0)
+        
+        l1_rate_data = l1_rate_data.reset_index()
+        min_date = l1_rate_data['date'].min()
+        max_date = l1_rate_data['date'].max()
+        inf_sim_min_date = l1_rate_data['date'].min() - pd.Timedelta(days=360)
+        inf_sim_max_date = l1_rate_data['date'].max() + pd.Timedelta(days=360)
+        
+        orange_color = '#FF7F0E'
+        l1_rate_max_plot = hv.Curve([(inf_sim_min_date, l1_rate_max), (inf_sim_max_date, l1_rate_max)], label='L1 Rate Max').opts(line_color=orange_color, line_width=2, muted_alpha=0, xlim=(min_date - pd.Timedelta(hours=1), max_date + pd.Timedelta(hours=1)))
+
+        composite_plot = composite_plot * l1_rate_max_plot
    
-    # Infinite lines with hv.HLine dont add legend label and it is a problem 
-    #l1_rate_max_plot = hv.HLine(l1_rate_max, label='L1 Rate Max').opts(line_dash='dashed', line_width=1, line_color=orange_color, muted_alpha=0)
+   
+    # L1 RATE TARGET
+    if l1_rate_target_data.empty is False:
+        # Select max value from L1 Rate Target dataframe
+        l1_rate_target_data = l1_rate_target_data.reset_index()
+        l1_rate_target_max = l1_rate_target_data['l1_rate_target'].max()
+        
+        # Create colorcet single color using hexadecimal
+        cyan_color = '#17BECF'
+        l1_rate_target_plot = hv.Curve([(inf_sim_min_date, l1_rate_target_max), (inf_sim_max_date, l1_rate_target_max)], label='L1 Rate Target').opts(line_color=cyan_color, line_width=2, muted_alpha=0, xlim=(min_date - pd.Timedelta(hours=1), max_date + pd.Timedelta(hours=1)))
+        
+        composite_plot = composite_plot * l1_rate_target_plot
     
-    # l1 RATE TARGET parameter
-    # Select max value from L1 Rate Target dataframe
-    l1_rate_target_data = l1_rate_target_data.reset_index()
-    l1_rate_target_max = l1_rate_target_data['l1_rate_target'].max()
-    
-    # Create colorcet single color using hexadecimal
-    cyan_color = '#17BECF'
-    l1_rate_target_plot = hv.Curve([(inf_sim_min_date, l1_rate_target_max), (inf_sim_max_date, l1_rate_target_max)], label='L1 Rate Target').opts(line_color=cyan_color, line_width=2, muted_alpha=0, xlim=(min_date - pd.Timedelta(hours=1), max_date + pd.Timedelta(hours=1)))
-    
-    # Create a composite plot with all the plots merged
-    composite_plot = lines_plot * single_channel_scatter_plot  * max_line_plot * all_channels_scatter_plot *  l1_rate_control_plot * l0_rate_control_plot * l1_rate_max_plot * l1_rate_target_plot
+    #composite_plot = lines_plot * single_channel_scatter_plot  * max_line_plot * all_channels_scatter_plot *  l1_rate_control_plot * l0_rate_control_plot * l1_rate_max_plot * l1_rate_target_plot
 
     return composite_plot.opts(legend_position='top', responsive=True, min_height=500, hooks=[disable_logo], show_grid=True, legend_opts={"click_policy": "hide"},)
 
