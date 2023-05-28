@@ -11,11 +11,11 @@ import gc
 import threading
 import sys
 import os
-from config import WEBSOCKET_ORIGIN
+
 
 # Application modules
 import dashboard_utils
-
+from config import WEBSOCKET_ORIGIN
 
 gc.enable()
 
