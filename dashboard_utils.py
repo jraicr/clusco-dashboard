@@ -53,6 +53,16 @@ cmap_backplane_temp = LinearSegmentedColormap.from_list('cmap_bp_temp', [
 
 
 def create_dashboard(template, date_filter=dt.date.today(), update=False):
+    """
+    Creates the dashboard with all the panel plots with the given template and date filter and shows it in the browser.
+
+    Parameters
+    ----------
+    - `template` (pn.template.MaterialTemplate) The template to use for the dashboard.
+    - `date_filter` (date) The date filter to use for the dashboard. Defaults to today.
+    - `update` (bool) Whether to update the dashboard or is a new creation. Defaults to False.
+
+    """
 
     if update:
         print('Updating dashboard')
@@ -317,6 +327,7 @@ def create_dashboard(template, date_filter=dt.date.today(), update=False):
     toc = time.perf_counter()
     print(f"\Dashboard deployed in {toc - tic:0.4f} seconds")
 
+
 def update_loading_message(template:pn.template.MaterialTemplate, message:str):
     """
     Updates and shows a loading message in the dashboard while deploying it for the first time.
@@ -328,6 +339,7 @@ def update_loading_message(template:pn.template.MaterialTemplate, message:str):
     """
     template.main[0][0][2].object = message
     
+
 def display_database_error(template: pn.template.MaterialTemplate):
     """
     Display a message in the dashboard when the connection to the database fails.
