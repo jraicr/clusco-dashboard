@@ -1,5 +1,5 @@
 """
-HoloViz plots management module
+HoloViz plots management module. We are using hvPlot (<https://hvplot.holoviz.org>) and Holoviews (<https://holoviews.org>) to create the plots.
 """
 import pandas as pd
 import holoviews as hv # noqa
@@ -109,7 +109,7 @@ def hvplot_df_scatter(df, x, y, title, color, size, marker, dic_opts, cmap="reds
     - `size` (int): The size of the points.
     - `marker` (str): The marker of the points.
     - `dic_opts` (dict): A dictionary with the options to pass to the plot created with hvPlot. See more at <https://hvplot.holoviz.org/user_guide/Customization.html>
-    - `cmap` (str): The color map to use to color the points.
+    - `cmap` (LinearSegmentedColormap): The colormap object based on lookup tables using linear segments.
     - `groupby` (str): The name of the dataframe column to use to group the points.
     - `datashade` (bool): Whether to use datashade or not.
     - `rasterize` (bool): Whether to use rasterize or not.
@@ -134,13 +134,12 @@ def hvplot_df_scatter(df, x, y, title, color, size, marker, dic_opts, cmap="reds
 
 
 def create_empty_plot():
-    
     """
     Creates an empty plot with a text indicating that there is no data available in the selected date.
 
     Returns
     ----------
-    - `empty_plot` (holoviews.core.spaces.DynamicMap): A DynamicMap instance from Holoviews created with hvPlot. See more at <https://holoviews.org/reference/containers/plotly/DynamicMap.html>
+    - `empty_plot` (holoviews.core.spaces.DynamicMap) A DynamicMap instance from Holoviews created with hvPlot. See more at <https://holoviews.org/reference/containers/plotly/DynamicMap.html>
     """
     empty_plot = hv.Curve([])
 
@@ -443,8 +442,6 @@ def plot_l0_ipr_data(data_dict, x, y, title, xlabel, ylabel, groupby, cmap_custo
         - Scatter plot with all the data for each channel
         - The scattered points corresponding with the values from the selected channel
         - The rasterized scattered points for the values from all channels
-
-
 
     Parameters
     ----------
