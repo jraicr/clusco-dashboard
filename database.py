@@ -12,16 +12,16 @@ def connect(host, port, db_name):
     
     Parameters
     ----------
-    - `host`: (string) The host parameter can be a full mongodb URI in addition to a simple hostname or IP.
-    - `port` (int) Database port
-    - `db_name` (string) The database name
+    - `host`: (str) The host parameter can be a full mongodb URI in addition to a simple hostname or IP.
+    - `port` (str) Database port
+    - `db_name` (str) The database name
 
     Returns
     ----------
     - `client`: A client-side representation of a MongoDB cluster from pymongo. See more at <https://pymongo.readthedocs.io/en/3.12.0/api/pymongo/mongo_client.html>
     """
     try:
-        client = MongoClient(host=host, port=port,
+        client = MongoClient(host=host, port=int(port),
                              serverSelectionTimeoutMS=5000)
         client.server_info()
     except:
