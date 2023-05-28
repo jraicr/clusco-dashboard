@@ -115,26 +115,25 @@ def create_plot_panel(df, title, id_var, var_name, value_name, xlabel, ylabel, c
         plot_panel = pn.panel(plot, widget_location='bottom', widgets={
                             var_name: c_widget}, sizing_mode='stretch_width', linked_axes=False)
         
-
     return plot_panel
 
 
-def create_l1_rate_plot_panel(dataList, title, id_var, var_name, value_name, xlabel, ylabel, cmap, climit, template, show_loading_msg=True):
+def create_l1_rate_plot_panel(data_dict, title, id_var, var_name, value_name, xlabel, ylabel, cmap, climit, template, show_loading_msg=True):
 
-    df = dataList[0]
+    l1_rate_data = data_dict['l1_rate']
 
     if show_loading_msg:
         dashboard_utils.update_loading_message(template, f'''<h1 style="text-align:center">Making plots...</h1> <h2 style="text-align:center">({title.split(' (')[0]})</h2> ''')
 
     print("   - Creating plot panel for: " + title)
 
-    if (df.empty):
+    if (l1_rate_data.empty):
         print("   - No data to plot for: " + title)
         plot = plot_helper.create_empty_plot()
         plot_panel = pn.panel(plot, sizing_mode='stretch_width', linked_axes=False)
     
     else:
-        plot = plot_helper.plot_l1_rate_data(dataList, id_var, value_name,
+        plot = plot_helper.plot_l1_rate_data(data_dict, id_var, value_name,
                         title, xlabel, ylabel, var_name, cmap, climit)
 
         c_widget = pn.widgets.DiscreteSlider
@@ -147,22 +146,22 @@ def create_l1_rate_plot_panel(dataList, title, id_var, var_name, value_name, xla
     return plot_panel
 
 
-def create_l0_ipr_plot_panel(dataList, title, id_var, var_name, value_name, xlabel, ylabel, cmap, climit, template, show_loading_msg=True):
+def create_l0_ipr_plot_panel(data_dict, title, id_var, var_name, value_name, xlabel, ylabel, cmap, climit, template, show_loading_msg=True):
 
-    df = dataList[0]
+    l0_ipr_data = data_dict['l0_pixel_ipr']
 
     if show_loading_msg:
         dashboard_utils.update_loading_message(template, f'''<h1 style="text-align:center">Making plots...</h1> <h2 style="text-align:center">({title.split(' (')[0]})</h2> ''')
 
     print("   - Creating plot panel for: " + title)
 
-    if (df.empty):
+    if (l0_ipr_data.empty):
         print("   - No data to plot for: " + title)
         plot = plot_helper.create_empty_plot()
         plot_panel = pn.panel(plot, sizing_mode='stretch_width', linked_axes=False)
     
     else:
-        plot = plot_helper.plot_l0_ipr_data(dataList, id_var, value_name,
+        plot = plot_helper.plot_l0_ipr_data(data_dict, id_var, value_name,
                         title, xlabel, ylabel, var_name, cmap, climit)
 
         c_widget = pn.widgets.DiscreteSlider
@@ -175,21 +174,21 @@ def create_l0_ipr_plot_panel(dataList, title, id_var, var_name, value_name, xlab
     return plot_panel
 
 
-def create_tib_rates_plot_panel(data, title, xlabel, ylabel, template, show_loading_msg=True):
+def create_tib_rates_plot_panel(data_dict, title, xlabel, ylabel, template, show_loading_msg=True):
 
-    df = data[0]
+    tib_busy_data = data_dict['tib_busy_rate']
     if show_loading_msg:
         dashboard_utils.update_loading_message(template, f'''<h1 style="text-align:center">Making plots...</h1> <h2 style="text-align:center">({title.split(' (')[0]})</h2> ''')
 
     print("   - Creating plot panel for: " + title)
 
-    if (df.empty):
+    if (tib_busy_data.empty):
         print("   - No data to plot for: " + title)
         plot = plot_helper.create_empty_plot()
         plot_panel = pn.panel(plot, sizing_mode='stretch_width', linked_axes=False)
         
     else:
-        plot = plot_helper.plot_tib_rate_data(data, title, xlabel, ylabel)
+        plot = plot_helper.plot_tib_rate_data(data_dict, title, xlabel, ylabel)
 
         plot_panel = pn.Column(plot, sizing_mode='stretch_width')
     return plot_panel
@@ -342,7 +341,7 @@ def create_dashboard(template, date_filter=dt.date.today(), update=False):
         template.main[0][0][0][1, 0] = scb_anode_current_plot_panel
 
     hv_title = 'High Voltage ' + '(' + str(min_filtered_date) + ')'
-    hv_plot_panel = create_plot_panel(hv_data, hv_title, 'date', 'channel', 'hv', 'Date', 'HV (V)', cmap_hv, (10, 1400), template, not update)
+    hv_plot_panel = create_plot_panel(hv_data, hv_title, 'date', 'channel', 'hv', 'Time (UTC)', 'HV (V)', cmap_hv, (10, 1400), template, not update)
     
     if update:
         template.main[0][0][0][1, 1] = hv_plot_panel
@@ -359,21 +358,39 @@ def create_dashboard(template, date_filter=dt.date.today(), update=False):
     # Second dashboard tab  #
     # # # # # # # # # # # # #
 
+    # Creates a dict with all the params to plot with the L1 Rate data
+    l1_rate_data_dict = {'l1_rate': l1_rate_data,
+                         'l1_rate_control': l1_rate_control_data,
+                         'l1_rate_max': l1_rate_max_data,
+                         'l1_rate_target': l1_rate_target_data,
+                         'l0_rate_control': l0_rate_control_data}
+
     l1_rate_title = 'L1 Rate ' + '(' + str(min_filtered_date) + ')'
-    l1_rate_plot_panel = create_l1_rate_plot_panel([l1_rate_data, l0_rate_control_data, l1_rate_control_data, l1_rate_max_data, l1_rate_target_data],
+    l1_rate_plot_panel = create_l1_rate_plot_panel(l1_rate_data_dict,
                 l1_rate_title, 'date', 'module', 'l1_rate', 'Time (UTC)', 'L1 Rate (Hz)', cmap_temps, (0, 1000), template, not update)
 
     if update:
         template.main[0][0][1][0, 0] = l1_rate_plot_panel
 
+    # Creates a dict with all the params to plot with the L0 Pixel IPR data
+    l0_pixel_ipr_data_dict = {'l0_pixel_ipr': l0_pixel_ipr_data,
+                              'l0_rate_max': l0_rate_max_data}
+
     l0_pixel_ipr_title = 'L0 Pixel IPR ' + '(' + str(min_filtered_date) + ')'
-    l0_pixel_ipr_panel = create_l0_ipr_plot_panel([l0_pixel_ipr_data, l0_rate_max_data], l0_pixel_ipr_title, 'date', 'channel', 'l0_pixel_ipr', 'Time (UTC)', 'L0 Pixel IPR (Hz)', cmap_temps, (0, 1000), template, not update)
+    l0_pixel_ipr_panel = create_l0_ipr_plot_panel(l0_pixel_ipr_data_dict, l0_pixel_ipr_title, 'date', 'channel', 'l0_pixel_ipr', 'Time (UTC)', 'L0 Pixel IPR (Hz)', cmap_temps, (0, 1000), template, not update)
 
     if update:
         template.main[0][0][1][0, 1] = l0_pixel_ipr_panel
 
+    # Creates a dict with all the params to plot with the TIB Rates
+    tib_rates_data_dict = {'tib_busy_rate': tib_busy_rate_data,
+                            'tib_calibration_rate': tib_calibration_rate_data,
+                            'tib_camera_rate': tib_camera_rate_data,
+                            'tib_local_rate': tib_local_rate_data,
+                            'tib_pedestal_rate': tib_pedestal_rate_data}
+    
     tib_rates_title = 'TIB Rates ' + '(' + str(min_filtered_date) + ')'
-    tib_rates_panel = create_tib_rates_plot_panel([tib_busy_rate_data, tib_calibration_rate_data, tib_camera_rate_data, tib_local_rate_data, tib_pedestal_rate_data], tib_rates_title, 'Time (UTC)', 'TIB Rates (Hz)', template, not update)
+    tib_rates_panel = create_tib_rates_plot_panel(tib_rates_data_dict, tib_rates_title, 'Time (UTC)', 'TIB Rates (Hz)', template, not update)
 
     if update:
         template.main[0][0][1][1, :] = tib_rates_panel
