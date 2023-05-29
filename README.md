@@ -1,6 +1,8 @@
 # Clusco Dashboard
 Dashboard web software designed for LST1 CACO monitoring for [CTA](https://www.cta-observatory.org), which utilizes the [HoloViz](https://holoviz.org) libraries ecosystem.
 
+Documentation for the python modules can be found [here](https://jraicr.github.io/clusco-dashboard/).
+
 ## 1. Prerequisites
 Since this application is based on Python the packages required could be managed using conda. The following is required:
 
